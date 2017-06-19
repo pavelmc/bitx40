@@ -27,28 +27,29 @@
 #include <EEPROM.h>
 
 /**
-    The Wire.h library is used to talk to the Si5351 and we also declare an instance of
-    Si5351 object to control the clocks.
-*/
-#include <Wire.h>
-
-/**
     The main chip which generates upto three oscillators of various frequencies in the
     Raduino is the Si5351a. To learn more about Si5351a you can download the datasheet
     from www.silabs.com although, strictly speaking it is not a requirment to understand this code.
-    Instead, you can look up the Si5351 library written by Jason Mildrum, NT7S. You can download and
-    install it from https://github.com/etherkit/Si5351Arduino to complile this file.
 
-    NOTE 1: This sketch is based on version V2 of the Si5351 library. It will not compile with V1!
+    There are a few arduino control libraries for the Si5351, we used the Jason Mildrum, NT7S library in the past.
+    You can download it from https://github.com/etherkit/Si5351Arduino this lib is the most complete in
+    features and details, but we don't use it at full because we have a simple goal: simple transceiver control.
 
-    NOTE 2: Although all V2 versions of the Si5351 library will technically work, it is recommended to
-    use v2.0.1 although this is not the very latest version. It has been noticed that newer versions produce
-    strong clicks during tuning. That issue is still under investigation. Please use v2.0.1 until this
-    is resolved. Download v1.0.2 from https://github.com/etherkit/Si5351Arduino/releases/tag/v2.0.1
+    We are using now the simple library built by Pavel, CO7WT, you can find it as always on Github
+    https://github.com/pavelmc/si5351mcu/ this lib is simple, small and has all the features we need
+    by using it we cut about 25% of the code without losing any feature.
+
+    Moreover, Pavel is a active bitx supporter and user.
+
+    Tip: by using the Pavel's lib you don't has to include nor initilize the Wire library, it does it for you.
 */
 
-#include <si5351.h> // https://github.com/etherkit/Si5351Arduino/releases/tag/v2.0.1
-Si5351 si5351;
+//~ include <si5351.h> // https://github.com/etherkit/Si5351Arduino/releases/tag/v2.0.1
+//~ Si5351mcu si5351;
+
+#include <si5351mcu.h> // https://github.com/pavelmc/si5351mcu/
+Si5351mcu si5351;
+
 /**
    The Raduino board is the size of a standard 16x2 LCD panel. It has three connectors:
 
@@ -419,12 +420,14 @@ void calibrate() {
     RUNmode = RUN_CALIBRATE;
 
     if (mode == USB) {
-      si5351.set_freq((bfo_freq + frequency + cal / 5 * 19 - USB_OFFSET) * 100LL, SI5351_CLK2);
+      //~ si5351.set_freq((bfo_freq + frequency + cal / 5 * 19 - USB_OFFSET) * 100LL, SI5351_CLK2);
+      si5351.setFreq(2, bfo_freq + frequency + cal / 5 * 19 - USB_OFFSET);
       itoa(USB_OFFSET, b, DEC);
     }
 
     else {
-      si5351.set_freq((bfo_freq - frequency + cal) * 100LL, SI5351_CLK2);
+      //~ si5351.set_freq((bfo_freq - frequency + cal) * 100LL, SI5351_CLK2);
+      si5351.setFreq(2, bfo_freq - frequency + cal);
       itoa(cal, b, DEC);
     }
 
@@ -464,9 +467,11 @@ void calibrate() {
 void setFrequency(unsigned long f) {
 
   if (mode & 1) // if we are in UPPER side band mode
-    si5351.set_freq((bfo_freq + f + cal * 19 / 5 - USB_OFFSET - RXshift - RIT) * 100ULL, SI5351_CLK2);
+    //~ si5351.set_freq((bfo_freq + f + cal * 19 / 5 - USB_OFFSET - RXshift - RIT) * 100ULL, SI5351_CLK2);
+    si5351.setFreq(2, bfo_freq + f + cal * 19 / 5 - USB_OFFSET - RXshift - RIT);
   else // if we are in LOWER side band mode
-    si5351.set_freq((bfo_freq - f + cal - RXshift - RIT) * 100ULL, SI5351_CLK2);
+    //~ si5351.set_freq((bfo_freq - f + cal - RXshift - RIT) * 100ULL, SI5351_CLK2);
+    si5351.setFreq(2, bfo_freq - f + cal - RXshift - RIT);
   updateDisplay();
 }
 
@@ -1292,20 +1297,24 @@ int knob_position() {
 */
 
 void set_drive_level(byte level) {
-  switch (level) {
-    case 2:
-      si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_2MA);
-      break;
-    case 4:
-      si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_4MA);
-      break;
-    case 6:
-      si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_6MA);
-      break;
-    case 8:
-      si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_8MA);
-      break;
-  }
+  //~ switch (level) {
+    //~ case 2:
+      //~ si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_2MA);
+      //~ break;
+    //~ case 4:
+      //~ si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_4MA);
+      //~ break;
+    //~ case 6:
+      //~ si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_6MA);
+      //~ break;
+    //~ case 8:
+      //~ si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_8MA);
+      //~ break;
+  //~ }
+
+    // dynamically calculate the power needed
+    // 0 ~ 2mA, 1 ~ 4mA... 3 ~ 8mA
+    si5351.setPower(2, level/2 - 1);
 }
 
 
@@ -1588,17 +1597,19 @@ void setup() {
   EEPROM.get(36, CW_TIMEOUT);
 
   //initialize the SI5351
-  si5351.init(SI5351_CRYSTAL_LOAD_8PF, 25000000L, 0);
-  //Serial.println("*Initiliazed Si5351\n");
-  si5351.set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
-  si5351.set_pll(SI5351_PLL_FIXED, SI5351_PLLB);
-  //Serial.println("*Fixed PLL\n");
-  si5351.output_enable(SI5351_CLK0, 0);
-  si5351.output_enable(SI5351_CLK1, 0);
-  si5351.output_enable(SI5351_CLK2, 1);
-  //Serial.println("*Output enabled PLL\n");
-  si5351.set_freq(500000000L , SI5351_CLK2);
-  //Serial.println("*Si5350 ON\n");
+  // lib default is 27.000 Mhz, we use 25.000  Mhz
+  // remember that this library start with all outputs off.
+  si5351.init(25000000);
+
+  // set & apply my calculated correction factor
+  si5351.correction(cal);
+
+  // pre-load some sweet spot freqs
+  si5351.setFreq(2, 5000000);
+
+  // reset the PLLs and enable the desired output
+  si5351.reset();
+  si5351.enable(2);
 
   if (!vfoActive) { // VFO A is active
     frequency = vfoA;
