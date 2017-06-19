@@ -1,5 +1,5 @@
 /**
-   Raduino_v1.14.1 for BITX40 - Allard Munters PE1NWL (pe1nwl@gooddx.net)
+   Raduino_v1.15 for BITX40 - Allard Munters PE1NWL (pe1nwl@gooddx.net)
 
    This source file is under General Public License version 3.
 
@@ -27,27 +27,28 @@
 #include <EEPROM.h>
 
 /**
+    The Wire.h library is used to talk to the Si5351 and we also declare an instance of
+    Si5351 object to control the clocks.
+*/
+#include <Wire.h>
+
+/**
     The main chip which generates upto three oscillators of various frequencies in the
     Raduino is the Si5351a. To learn more about Si5351a you can download the datasheet
     from www.silabs.com although, strictly speaking it is not a requirment to understand this code.
-    Instead, you can look up the Si5351 library written by Jason Mildrum, NT7S.
+    Instead, you can look up the Si5351 library written by Jason Mildrum, NT7S. You can download and
+    install it from https://github.com/etherkit/Si5351Arduino to complile this file.
 
-    You can download and install it from https://github.com/etherkit/Si5351Arduino
-    as that is the mainstream lib and ahs all the features you would like to use.
+    NOTE 1: This sketch is based on version V2 of the Si5351 library. It will not compile with V1!
 
-    But, we are switching to Pavel, CO7WT Si5351mcu library as this is small and it has
-    all the features we need; that switch of libs free us about 25% of code firmware and
-    about 7% of the SRAM to improve and add new features.
-
-    You has to download and install Pavel's Si5351mcu lib from its Github repo:
-    https://github.com/pavelmc/si5351mcu/
+    NOTE 2: Although all V2 versions of the Si5351 library will technically work, it is recommended to
+    use v2.0.1 although this is not the very latest version. It has been noticed that newer versions produce
+    strong clicks during tuning. That issue is still under investigation. Please use v2.0.1 until this
+    is resolved. Download v1.0.2 from https://github.com/etherkit/Si5351Arduino/releases/tag/v2.0.1
 */
 
-#include <si5351mcu.h> // https://github.com/pavelmc/si5351mcu/
-Si5351mcu si5351;
-
-// this libs manage the Wire functions internally, you don't need to include nor initialize it
-
+#include <si5351.h> // https://github.com/etherkit/Si5351Arduino/releases/tag/v2.0.1
+Si5351 si5351;
 /**
    The Raduino board is the size of a standard 16x2 LCD panel. It has three connectors:
 
@@ -80,7 +81,7 @@ LiquidCrystal lcd(8, 9, 10, 11, 12, 13);
    the serial port as we can easily run out of buffer space. This is done in the serial_in_count variable.
 */
 
-char c[30], b[30], printBuff[32];
+char c[17], b[10], printBuff1[17], printBuff2[17];
 
 /**
    We need to carefully pick assignment of pin for various purposes.
@@ -143,14 +144,18 @@ int CW_TIMEOUT; // in milliseconds, this is the parameter that determines how lo
 
 /**
    The Raduino supports two VFOs : A and B and receiver incremental tuning (RIT).
-   we define a variables to hold the frequency of the two VFOs, RITs
+   we define a variables to hold the frequency of the two VFOs, RIT, SPLIT
    the rit offset as well as status of the RIT
 
    To use this facility, wire up push button on A3 line of the control connector (Function Button)
 */
 
 unsigned long vfoA, vfoB; // the frequencies the VFOs
-bool ritOn; // whether or not the RIT is on
+bool ritOn = false; // whether or not the RIT is on
+int RIToffset = 0;  // offset (Hz)
+int RIT = 0; // actual RIT offset that is applied during RX when RIT is on
+int RIT_old;
+bool splitOn; // whether or not SPLIT is on
 bool vfoActive; // which VFO (false=A or true=B) is active
 byte mode_A, mode_B; // the mode of each VFO
 
@@ -184,10 +189,10 @@ int scan_step_delay; // step delay (ms)
   Raduino has 4 modes of operation:
 */
 
-#define LSB (1)
-#define USB (2)
-#define CWL (3)
-#define CWU (4)
+#define LSB (0)
+#define USB (1)
+#define CWL (2)
+#define CWU (3)
 
 /**
    Raduino needs to keep track of current state of the transceiver. These are a few variables that do it
@@ -252,16 +257,27 @@ byte RUNmode = RUN_NORMAL;
 */
 
 void printLine1(char *c) {
-  if (strcmp(c, printBuff)) {
-    lcd.setCursor(0, 0);
-    lcd.print(c);
-    strcpy(printBuff, c);
+  if (strcmp(c, printBuff1)) { // only refresh the display when there was a change
+    lcd.setCursor(0, 0); // place the cursor at the beginning of the top line
+    lcd.print(c); // write text
+    strcpy(printBuff1, c);
+
+    for (byte i = strlen(c); i < 16; i++) { // add white spaces until the end of the 16 characters line is reached
+      lcd.print(' ');
+    }
   }
 }
 
 void printLine2(char *c) {
-  lcd.setCursor(0, 1);
-  lcd.print(c);
+  if (strcmp(c, printBuff2)) { // only refresh the display when there was a change
+    lcd.setCursor(0, 1); // place the cursor at the beginning of the bottom line
+    lcd.print(c);
+    strcpy(printBuff2, c);
+
+    for (byte i = strlen(c); i < 16; i++) { // add white spaces until the end of the 16 characters line is reached
+      lcd.print(' ');
+    }
+  }
 }
 
 /**
@@ -306,10 +322,8 @@ void updateDisplay() {
 
   if (inTx)
     strcat(c, " TX");
-  else if (ritOn)
-    strcat(c, " +R");
-  else
-    strcat(c, "   ");
+  else if (splitOn)
+    strcat(c, " SP");
 
   printLine1(c);
 }
@@ -346,10 +360,9 @@ bool calbutton = false;
 
 int shift, current_setting;
 void calibrate() {
-
   if (RUNmode != RUN_CALIBRATE) {
 
-    if (mode == USB || mode == CWU)
+    if (mode == USB)
       current_setting = USB_OFFSET;
     else
       current_setting = cal;
@@ -383,13 +396,13 @@ void calibrate() {
     calbutton = false;
 
     if (mode == USB) {
-      printLine2((char *)"USB Calibrated! ");
+      printLine2((char *)"USB Calibrated!");
       //Write the 2 bytes of the USB offset into the eeprom memory.
       EEPROM.put(4, USB_OFFSET);
     }
 
     else {
-      printLine2((char *)"LSB Calibrated! ");
+      printLine2((char *)"LSB Calibrated!");
       //Write the 2 bytes of the LSB offset into the eeprom memory.
       EEPROM.put(2, cal);
     }
@@ -406,18 +419,18 @@ void calibrate() {
     RUNmode = RUN_CALIBRATE;
 
     if (mode == USB) {
-      si5351.setFreq(2, bfo_freq + frequency + cal / 5 * 19 - USB_OFFSET);
+      si5351.set_freq((bfo_freq + frequency + cal / 5 * 19 - USB_OFFSET) * 100LL, SI5351_CLK2);
       itoa(USB_OFFSET, b, DEC);
     }
 
     else {
-      si5351.setFreq(2, bfo_freq - frequency + cal);
+      si5351.set_freq((bfo_freq - frequency + cal) * 100LL, SI5351_CLK2);
       itoa(cal, b, DEC);
     }
 
     strcpy(c, "offset ");
     strcat(c, b);
-    strcat(c, " Hz     ");
+    strcat(c, " Hz");
     printLine2(c);
   }
 }
@@ -450,11 +463,10 @@ void calibrate() {
 
 void setFrequency(unsigned long f) {
 
-  if (mode == USB || mode == CWU)
-    si5351.setFreq(2, bfo_freq + f + cal / 5 * 19 - USB_OFFSET - RXshift);
-  else
-    si5351.setFreq(2, bfo_freq - f + cal - RXshift);
-  frequency = f;
+  if (mode & 1) // if we are in UPPER side band mode
+    si5351.set_freq((bfo_freq + f + cal * 19 / 5 - USB_OFFSET - RXshift - RIT) * 100ULL, SI5351_CLK2);
+  else // if we are in LOWER side band mode
+    si5351.set_freq((bfo_freq - f + cal - RXshift - RIT) * 100ULL, SI5351_CLK2);
   updateDisplay();
 }
 
@@ -475,11 +487,9 @@ void checkTX() {
   if (digitalRead(PTT_SENSE) && !inTx) {
     // go in transmit mode
     inTx = true;
-    RXshift = 0;
+    RXshift = RIT = RIT_old = 0;
 
-    //return to SSB if we were in CW
-    if (mode > 2)
-      mode = mode - 2;
+    mode = mode & B11111101; // leave CW mode, return to SSB mode
 
     if (!vfoActive) { // if VFO A is active
       mode_A = mode;
@@ -494,7 +504,7 @@ void checkTX() {
     shiftBase();
     updateDisplay();
 
-    if (ritOn) { // when RIT is on, swap the VFOs
+    if (splitOn) { // when SPLIT is on, swap the VFOs
       swapVFOs();
     }
   }
@@ -503,7 +513,7 @@ void checkTX() {
     //go in receive mode
     inTx = false;
     updateDisplay();
-    if (ritOn) { // when RIT was on, swap the VFOs back to original state
+    if (splitOn) { // when SPLIT was on, swap the VFOs back to original state
       swapVFOs();
     }
   }
@@ -539,8 +549,6 @@ void checkTX() {
 
 void checkCW() {
 
-  static unsigned long old_cwoffset;
-
   if (!keyDown && !digitalRead(KEY)) {
     keyDown = true;
 
@@ -549,13 +557,11 @@ void checkCW() {
       digitalWrite(TX_RX, 1); // activate the PTT switch - go in transmit mode
       delay(5);  //give the relays a few ms to settle the T/R relays
       inTx = true;
-      firstrun = true;
 
-      if (ritOn) // when RIT is on, swap the VFOs first
+      if (splitOn) // when SPLIT is on, swap the VFOs first
         swapVFOs();
 
-      if (mode < 3) // switch to CW mode if we were in SSB
-        mode = mode + 2;
+      mode = mode | 2; // go into to CW mode
 
       if (!vfoActive) { // if VFO A is active
         mode_A = mode;
@@ -591,7 +597,7 @@ void checkCW() {
     setFrequency(frequency);
     shiftBase();
 
-    if (ritOn) // then swap the VFOs back when the RIT was on
+    if (splitOn) // then swap the VFOs back when SPLIT was on
       swapVFOs();
 
     digitalWrite(TX_RX, 0); // release the PTT switch - move the radio back to receive
@@ -616,23 +622,25 @@ byte param;
    NORMAL menu (normal operation):
    1 short press: swap VFO A/B
    2 short presses: toggle RIT on/off
-   3 short presses: toggle LSB/USB
-   4 short presses: start scan mode
+   3 short presses: toggle SPLIT on/off
+   4 short presses: toggle LSB/USB
+   5 short presses: start freq scan mode
+   5 short presses: start A/B monitor mode
    long press (>1 Sec): VFO A=B
    VERY long press (>3 sec): go to SETTINGS menu
 
    SETTINGS menu:
    1 short press: LSB calibration
    2 short presses: USB calibration
-   3 short presses: VFO drive level in LSB mode
-   4 short presses: VFO drive level in USB mode
-   5 short presses: Tuning range upper&lower limit settings
-   6 short presses: Set the CW parameters (sidetone pitch, CW timeout)
+   3 short presses: Set VFO drive level in LSB mode
+   4 short presses: Set VFO drive level in USB mode
+   5 short presses: Set tuning range
+   6 short presses: Set the 2 CW parameters (sidetone pitch, CW timeout)
    7 short presses: Set the 4 scan parameters (lower limit, upper limit, step size, step delay)
    long press: exit SETTINGS menu - go back to NORMAL menu
 */
 char clicks;
-bool clr = false;
+
 void checkButton() {
 
   static byte action;
@@ -647,7 +655,6 @@ void checkButton() {
         resetVFOs();
         delay(700);
         clicks = 0;
-        clr = false;
       }
 
     if (t2 > 500) { // max time between button clicks (ms)
@@ -663,6 +670,12 @@ void checkButton() {
     delay(10);
     if (!digitalRead(FBUTTON)) {
       // button was really pressed, not just some noise
+      if (ritOn) {
+        toggleRIT();
+        bleep(600, 50, 1);
+        delay(700);
+        return;
+      }
       if (!pressed) {
         pressed = true;
         t1 = millis();
@@ -671,71 +684,75 @@ void checkButton() {
         clicks++;
         if (clicks > 17)
           clicks = 11;
-        if (clicks > 5 && clicks < 10)
+        if (clicks > 6 && clicks < 10)
           clicks = 1;
         switch (clicks) {
           //Normal menu options
           case 1:
-            printLine2((char *)"Swap VFOs       ");
+            printLine2((char *)"Swap VFOs");
             break;
           case 2:
-            printLine2((char *)"RIT ON/OFF      ");
+            printLine2((char *)"RIT ON");
             break;
           case 3:
-            printLine2((char *)"Toggle LSB/USB  ");
+            printLine2((char *)"SPLIT ON/OFF");
             break;
           case 4:
-            printLine2((char *)"Start freq scan ");
+            printLine2((char *)"Switch mode");
             break;
           case 5:
-            printLine2((char *)"Monitor VFO A/B ");
+            printLine2((char *)"Start freq scan");
+            break;
+          case 6:
+            printLine2((char *)"Monitor VFO A/B");
             break;
 
           //SETTINGS menu options
           case 11:
-            printLine2((char *)"LSB calibration ");
+            printLine2((char *)"LSB calibration");
             break;
           case 12:
-            printLine2((char *)"USB calibration ");
+            printLine2((char *)"USB calibration");
             break;
           case 13:
-            printLine2((char *)"VFO drive - LSB ");
+            printLine2((char *)"VFO drive - LSB");
             break;
           case 14:
-            printLine2((char *)"VFO drive - USB ");
+            printLine2((char *)"VFO drive - USB");
             break;
           case 15:
             printLine2((char *)"Set tuning range");
             break;
           case 16:
-            printLine2((char *)"Set CW params   ");
+            printLine2((char *)"Set CW params");
             break;
           case 17:
-            printLine2((char *)"Set scan params ");
+            printLine2((char *)"Set scan params");
             break;
         }
       }
       else if ((millis() - t1) > 600 && (millis() - t1) < 800 && clicks < 10) // long press: reset the VFOs
-        printLine2((char *)"Reset VFOs      ");
+        printLine2((char *)"Reset VFOs");
 
       if ((millis() - t1) > 3000 && clicks < 10) { // VERY long press: go to the SETTINGS menu
         bleep(1200, 150, 3);
         printLine2((char *)"--- SETTINGS ---");
         clicks = 10;
+        if (ritOn) //disable RIT if is was on
+          toggleRIT();
       }
 
       else if ((millis() - t1) > 1500 && clicks > 10) { // long press: return to the NORMAL menu
         bleep(1200, 150, 3);
         clicks = -1;
         pressed = false;
-        printLine2((char *)" --- NORMAL --- ");
+        printLine2((char *)" --- NORMAL ---");
         delay(700);
       }
     }
   }
   if (action != 0 && action != 10) {
     bleep(600, 50, 1);
-    clr = false;
   }
   switch (action) {
     // NORMAL menu
@@ -751,22 +768,27 @@ void checkButton() {
       delay(700);
       break;
 
-    case 3: // toggle the mode LSB/USB
+    case 3: // toggle SPLIT on/off
+      toggleSPLIT();
+      delay(700);
+      break;
+
+    case 4: // toggle the mode LSB/USB
       toggleMode();
       delay(700);
       break;
 
-    case 4: // start scan mode
+    case 5: // start scan mode
       RUNmode = RUN_SCAN;
       TimeOut = millis() + scan_step_delay;
       frequency = scan_start_freq * 1000L;
-      printLine2((char *)"freq scanning   ");
+      printLine2((char *)"freq scanning");
       break;
 
-    case 5: // Monitor mode
+    case 6: // Monitor mode
       RUNmode = RUN_MONITOR;
       TimeOut = millis() + scan_step_delay;
-      printLine2((char *)"A/B monitoring  ");
+      printLine2((char *)"A/B monitoring");
       break;
 
     // SETTINGS MENU
@@ -775,7 +797,7 @@ void checkButton() {
       RXshift = 0;
       mode = LSB;
       setFrequency(frequency);
-      setLSB();
+      SetSideBand(LSBdrive);
       calibrate();
       break;
 
@@ -783,17 +805,19 @@ void checkButton() {
       RXshift = 0;
       mode = USB;
       setFrequency(frequency);
-      setUSB();
+      SetSideBand(USBdrive);
       calibrate();
       break;
 
     case 13: // set the VFO drive level in LSB
-      setLSB();
+      mode = LSB;
+      SetSideBand(LSBdrive);
       VFOdrive();
       break;
 
     case 14: // set the VFO drive level in USB
-      setUSB();
+      mode = USB;
+      SetSideBand(USBdrive);
       VFOdrive();
       break;
 
@@ -828,12 +852,12 @@ void swapVFOs() {
     mode = mode_B;
   }
 
-  if (mode == USB || mode == CWU)
-    setUSB();
-  else
-    setLSB();
+  if (mode & 1) // if we are in UPPER side band mode
+    SetSideBand(USBdrive);
+  else // if we are in LOWER side band mode
+    SetSideBand(LSBdrive);
 
-  if (!inTx && mode > 2)
+  if (!inTx && mode > 1)
     RXshift = CW_OFFSET;
   else
     RXshift = 0;
@@ -844,25 +868,57 @@ void swapVFOs() {
 
 void toggleRIT() {
   if (!PTTsense_installed) {
-    printLine2((char *)"Not available!  ");
+    printLine2((char *)"Not available!");
     return;
   }
-  ritOn = !ritOn; // toggle the RIT
-  EEPROM.put(27, ritOn);
+  ritOn = !ritOn; // toggle RIT
+  if (!ritOn)
+    RIT = RIT_old = 0;
+  shiftBase(); //align the current knob position with the current frequency
+  firstrun = true;
+  if (splitOn) {
+    splitOn = false;
+    EEPROM.put(27, 0);
+  }
+  updateDisplay();
+}
+
+
+void toggleSPLIT() {
+  if (!PTTsense_installed) {
+    printLine2((char *)"Not available!");
+    return;
+  }
+  splitOn = !splitOn; // toggle SPLIT
+  EEPROM.put(27, splitOn);
+  if (ritOn) {
+    ritOn = false;
+    RIT = RIT_old = 0;
+    shiftBase();
+  }
   updateDisplay();
 }
 
 void toggleMode() {
-  if (mode == USB || mode == CWU)
-    setLSB();
+  if (PTTsense_installed)
+    mode = (mode + 1) & 3; // rotate through LSB-USB-CWL-CWU
   else
-    setUSB();
+    mode = (mode + 1) & 1; // switch between LSB and USB only (no CW)
+
+  if (mode & 2) // if we are in CW mode
+    RXshift = CW_OFFSET;
+  else // if we are in SSB mode
+    RXshift = 0;
+
+  if (mode & 1) // if we are in UPPER side band mode
+    SetSideBand(USBdrive);
+  else // if we are in LOWER side band mode
+    SetSideBand(LSBdrive);
 }
 
-void setUSB() {
-  if (mode == LSB || mode == CWL)
-    mode = mode + 1; // switch from LSB to USB or from CWL to CWU
-  set_drive_level(USBdrive);
+void SetSideBand(byte drivelevel) {
+
+  set_drive_level(drivelevel);
   setFrequency(frequency);
   if (!vfoActive) { // if VFO A is active
     mode_A = mode;
@@ -874,24 +930,10 @@ void setUSB() {
   }
 }
 
-void setLSB() {
-  if (mode == USB || mode == CWU)
-    mode = mode - 1; // switch from USB to LSB or from CWU to CWL
-  set_drive_level(LSBdrive);
-  setFrequency(frequency);
-  if (!vfoActive) { // if VFO A is active
-    mode_A = mode;
-    EEPROM.put(24, mode_A);
-  }
-  else { // if VFO B is active
-    mode_B = mode;
-    EEPROM.put(25, mode_B);
-  }
-}
 
 // resetting the VFO's will set both VFO's to the current frequency and mode
 void resetVFOs() {
-  printLine2((char *)"VFO A=B !       ");
+  printLine2((char *)"VFO A=B !");
   vfoA = vfoB = frequency;
   mode_A = mode_B = mode;
   updateDisplay();
@@ -904,9 +946,10 @@ void VFOdrive() {
   static byte drive;
 
   if (RUNmode != RUN_DRIVELEVEL) {
-    if (mode == USB || mode == CWU)
+
+    if (mode & 1) // if UPPER side band mode
       current_setting = USBdrive / 2 - 1;
-    else
+    else // if LOWER side band mode
       current_setting = LSBdrive / 2 - 1;
 
     shift = analogRead(ANALOG_TUNING);
@@ -921,12 +964,12 @@ void VFOdrive() {
     RUNmode = RUN_NORMAL;
     printLine2((char *)"Drive level set!");
 
-    if (mode == USB || mode == CWU) {
+    if (mode & 1) { // if UPPER side band mode
       USBdrive = drive;
       //Write the 2 bytes of the USBdrive level into the eeprom memory.
       EEPROM.put(8, drive);
     }
-    else {
+    else { // if LOWER side band mode
       LSBdrive = drive;
       //Write the 2 bytes of the LSBdrive level into the eeprom memory.
       EEPROM.put(6, drive);
@@ -945,7 +988,7 @@ void VFOdrive() {
     itoa(drive, b, DEC);
     strcpy(c, "drive level ");
     strcat(c, b);
-    strcat(c, "mA ");
+    strcat(c, "mA");
     printLine2(c);
   }
 }
@@ -972,7 +1015,7 @@ void set_tune_range() {
   if (!digitalRead(FBUTTON)) {
     //Write the 2 bytes of the tuning range into the eeprom memory.
     EEPROM.put(10, TUNING_RANGE);
-    printLine2((char *)"Tune range set! ");
+    printLine2((char *)"Tune range set!");
     RUNmode = RUN_NORMAL;
     delay(700);
     bleep(600, 50, 2);
@@ -985,7 +1028,7 @@ void set_tune_range() {
     itoa(TUNING_RANGE, b, DEC);
     strcpy(c, "range ");
     strcat(c, b);
-    strcat(c, " kHz    ");
+    strcat(c, " kHz");
     printLine2(c);
   }
 }
@@ -1036,7 +1079,7 @@ void set_CWparams() {
     else {
       //Write the 2 bytes of the CW Timout into the eeprom memory.
       EEPROM.put(36, CW_TIMEOUT);
-      printLine2((char *)"CW params set!  ");
+      printLine2((char *)"CW params set!");
       RUNmode = RUN_NORMAL;
       delay(700);
       bleep(600, 50, 2);
@@ -1054,13 +1097,13 @@ void set_CWparams() {
       itoa(CW_OFFSET, b, DEC);
       strcpy(c, "sidetone ");
       strcat(c, b);
-      strcat(c, " Hz  ");
+      strcat(c, " Hz");
     }
     else {
       itoa(CW_TIMEOUT, b, DEC);
       strcpy(c, "timeout ");
       strcat(c, b);
-      strcat(c, " ms  ");
+      strcat(c, " ms");
     }
     printLine2(c);
   }
@@ -1142,7 +1185,6 @@ void scan_params() {
         shift = shift + 50;
       break;
   }
-  delay(100);
 
   // if Fbutton is pressed, we save the setting
 
@@ -1196,7 +1238,7 @@ void scan_params() {
         itoa(scan_start_freq, b, DEC);
         strcpy(c, "lower ");
         strcat(c, b);
-        strcat(c, " kHz  ");
+        strcat(c, " kHz");
         break;
 
       case 2: // display the upper scan limit
@@ -1204,7 +1246,7 @@ void scan_params() {
         itoa(scan_stop_freq, b, DEC);
         strcpy(c, "upper ");
         strcat(c, b);
-        strcat(c, " kHz  ");
+        strcat(c, " kHz");
         break;
 
       case 3: // display the scan step size
@@ -1212,7 +1254,7 @@ void scan_params() {
         itoa(scan_step_freq, b, DEC);
         strcpy(c, "step ");
         strcat(c, b);
-        strcat(c, " Hz      ");
+        strcat(c, " Hz");
         break;
 
       case 4: // display the scan step delay
@@ -1220,7 +1262,7 @@ void scan_params() {
         itoa(scan_step_delay, b, DEC);
         strcpy(c, "delay ");
         strcat(c, b);
-        strcat(c, " ms     ");
+        strcat(c, " ms");
         break;
     }
     printLine2(c);
@@ -1229,7 +1271,7 @@ void scan_params() {
 
 
 // function to read the position of the tuning knob at high precision (Allard, PE1NWL)
-long knob_position() {
+int knob_position() {
   long knob = 0;
   // the knob value normally ranges from 0 through 1023 (10 bit ADC)
   // in order to increase the precision by a factor 10, we need 10^2 = 100x oversampling
@@ -1250,9 +1292,55 @@ long knob_position() {
 */
 
 void set_drive_level(byte level) {
-    // calc the level dynamically, 0 = 2ma, 3 = 8ma, see si5351mcu.h
-    si5351.setPower(2, level/2 - 1);
+  switch (level) {
+    case 2:
+      si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_2MA);
+      break;
+    case 4:
+      si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_4MA);
+      break;
+    case 6:
+      si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_6MA);
+      break;
+    case 8:
+      si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_8MA);
+      break;
+  }
 }
+
+
+void doRIT() {
+
+  int knob = knob_position(); // get the current tuning knob position
+
+  if (firstrun) {
+    current_setting = RIToffset;
+    shift = current_setting - ((knob - 5000) / 10 * 5);
+    firstrun = false;
+  }
+
+  //generate values -5000 ~ +5000 from the tuning pot
+  RIToffset = (knob - 5000) / 10 * 5 + shift;
+  if (knob < 0 && RIToffset > -2500)
+    shift = shift - 50;
+  else if (knob > 10000 && RIToffset < 2500)
+    shift = shift + 50;
+
+  RIT = RIToffset;
+
+  if (RIT != RIT_old)
+    setFrequency(frequency);
+
+  itoa(RIToffset, b, DEC);
+  strcpy(c, "RIT ");
+  strcat(c, b);
+  strcat(c, " Hz");
+  printLine2(c);
+  delay(100);
+  RIT_old = RIT;
+  old_knob = knob;
+}
+
 
 /**
    Function to align the current knob position with the current frequency
@@ -1283,26 +1371,25 @@ void shiftBase() {
 
 void doTuning() {
 
-  long knob = knob_position(); // get the current tuning knob position
+  int knob = knob_position(); // get the current tuning knob position
 
   // tuning is disabled during TX (only when PTT sense line is installed)
   if (inTx && (abs(knob - old_knob) > 6)) {
-    printLine2((char *)"dial is locked  ");
+    printLine2((char *)"dial is locked");
     shiftBase();
+    firstrun = true;
     return;
   }
   else if (inTx)
     return;
 
-
   // the knob is fully on the low end, move down by 10 Khz and wait for 300 msec
   if (knob < -80 && frequency > LOWEST_FREQ) {
     baseTune = baseTune - 10000L;
-    frequency = baseTune + (knob * TUNING_RANGE / 10L);
+    frequency = baseTune + (long(knob) * TUNING_RANGE / 10L);
     setFrequency(frequency);
     if (clicks < 10) {
-      printLine2((char *)"<<<<<<<         "); // tks Paul KC8WBK
-      clr = false;
+      printLine2((char *)"<<<<<<<"); // tks Paul KC8WBK
     }
     delay(300);
   }
@@ -1310,11 +1397,10 @@ void doTuning() {
   // the knob is full on the high end, move up by 10 Khz and wait for 300 msec
   else if (knob > 10120L && frequency < HIGHEST_FREQ) {
     baseTune = baseTune + 10000L;
-    frequency = baseTune + (knob * TUNING_RANGE / 10L);
+    frequency = baseTune + (long(knob) * TUNING_RANGE / 10L);
     setFrequency(frequency);
     if (clicks < 10) {
       printLine2((char *)"         >>>>>>>"); // tks Paul KC8WBK
-      clr = false;
     }
     delay(300);
   }
@@ -1327,11 +1413,11 @@ void doTuning() {
            (knob < old_knob) && ((dir_knob == 0) || ((old_knob - knob) > 5)) ) {
         if (knob > old_knob) {
           dir_knob = 1;
-          frequency = baseTune + ((knob + 5) * TUNING_RANGE / 10L);
+          frequency = baseTune + (long(knob + 5) * TUNING_RANGE / 10L);
         }
         else {
           dir_knob = 0;
-          frequency = baseTune + (knob * TUNING_RANGE / 10L);
+          frequency = baseTune + (long(knob) * TUNING_RANGE / 10L);
         }
         old_knob = knob;
         setFrequency(frequency);
@@ -1351,9 +1437,9 @@ byte raduino_version; //version identifier
 
 void factory_settings() {
   printLine1((char *)"loading standard");
-  printLine2((char *)"settings...     ");
+  printLine2((char *)"settings...");
   EEPROM.put(0, raduino_version); //version identifier
-  EEPROM.put(2, 0); //corr factor (0 Hz)
+  EEPROM.put(2, 0); //cal offset value (0 Hz)
   EEPROM.put(4, 1500); //USB offset (1500 Hz)
   EEPROM.put(6, 4); //VFO drive level in LSB/CWL mode (4 mA)
   EEPROM.put(8, 8); //VFO drive level in USB/CWU mode (8 mA)
@@ -1361,10 +1447,10 @@ void factory_settings() {
   EEPROM.put(12, 800); //CW offset / sidetone pitch (800 Hz)
   EEPROM.put(16, 7125000UL); // VFO A frequency (7125 kHz)
   EEPROM.put(20, 7125000UL); // VFO B frequency (7125 kHz)
-  EEPROM.put(24, 1); // mode A (LSB)
-  EEPROM.put(25, 1); // mode B (LSB)
+  EEPROM.put(24, 0); // mode VFO A (LSB)
+  EEPROM.put(25, 0); // mode VFO B (LSB)
   EEPROM.put(26, false); // vfoActive (VFO A)
-  EEPROM.put(27, false); // RIT off
+  EEPROM.put(27, false); // SPLIT off
   EEPROM.put(28, 7100); // scan_start_freq (7100 kHz)
   EEPROM.put(30, 7150); // scan_stop_freq (7150 kHz)
   EEPROM.put(32, 1000); // scan_step_freq (1000 Hz)
@@ -1396,10 +1482,11 @@ void save_frequency() {
 
 void scan() {
 
-  long knob = knob_position();
+  int knob = knob_position();
 
   if (abs(knob - old_knob) > 8 || (digitalRead(PTT_SENSE) && PTTsense_installed) || !digitalRead(FBUTTON) || !digitalRead(KEY)) {
     //stop scanning
+    TimeOut = 0; // reset the timeout counter
     RUNmode = RUN_NORMAL;
     shiftBase();
     delay(400);
@@ -1430,11 +1517,12 @@ void scan() {
    Choose Serial Monitor from Arduino IDE's Tools menu to see the Serial.print messages
 */
 void setup() {
-  raduino_version = 15;
-  strcpy (c, "Raduino v1.14.1 ");
+  raduino_version = 16;
+  strcpy (c, "Raduino v1.15");
 
   lcd.begin(16, 2);
-  printBuff[0] = 0;
+  printBuff1[0] = 0;
+  printBuff2[0] = 0;
 
   // Start serial and initialize the Si5351
   Serial.begin(9600);
@@ -1492,25 +1580,25 @@ void setup() {
   EEPROM.get(24, mode_A);
   EEPROM.get(25, mode_B);
   EEPROM.get(26, vfoActive);
-  EEPROM.get(27, ritOn);
+  EEPROM.get(27, splitOn);
   EEPROM.get(28, scan_start_freq);
   EEPROM.get(30, scan_stop_freq);
   EEPROM.get(32, scan_step_freq);
   EEPROM.get(34, scan_step_delay);
   EEPROM.get(36, CW_TIMEOUT);
 
-  //initialize the SI5351, the lib uses a 27 Mhz xtal by default, we use a 25 Mhz one.
-  // note that all outputs are disabled at this point
-  si5351.init(25000000L);
-
-  // pre-load some sweet spot freqs
-  si5351.setFreq(2, 5000000L);
-
-  // enable only the wanted output
-  si5351.enable(2);
-
-  // reset the Plls
-  si5351.reset();
+  //initialize the SI5351
+  si5351.init(SI5351_CRYSTAL_LOAD_8PF, 25000000L, 0);
+  //Serial.println("*Initiliazed Si5351\n");
+  si5351.set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
+  si5351.set_pll(SI5351_PLL_FIXED, SI5351_PLLB);
+  //Serial.println("*Fixed PLL\n");
+  si5351.output_enable(SI5351_CLK0, 0);
+  si5351.output_enable(SI5351_CLK1, 0);
+  si5351.output_enable(SI5351_CLK2, 1);
+  //Serial.println("*Output enabled PLL\n");
+  si5351.set_freq(500000000L , SI5351_CLK2);
+  //Serial.println("*Si5350 ON\n");
 
   if (!vfoActive) { // VFO A is active
     frequency = vfoA;
@@ -1521,12 +1609,12 @@ void setup() {
     mode = mode_B;
   }
 
-  if (mode == USB || mode == CWU)
-    setUSB();
-  else
-    setLSB();
+  if (mode & 1) // if UPPER side band
+    SetSideBand(USBdrive);
+  else // if LOWER side band
+    SetSideBand(LSBdrive);
 
-  if (mode > 2)
+  if (mode > 1) // if in CW mode
     RXshift = CW_OFFSET;
 
   shiftBase(); //align the current knob position with the current frequency
@@ -1550,44 +1638,46 @@ void loop() {
         calbutton = true;
         factory_settings();
         printLine1((char *)"Calibrating: Set");
-        printLine2((char *)"to zerobeat.    ");
+        printLine2((char *)"to zerobeat");
         delay(2000);
-        return;
       }
-      if (clicks == 0 && !clr) {
-        printLine2((char *)"                ");
-        clr = true;
+      else {
+        if (clicks == 0 && !ritOn && !inTx)
+          printLine2((char *)" ");
+        if (PTTsense_installed) {
+          checkCW();
+          checkTX();
+        }
+        save_frequency();
+        checkButton();
+        if (ritOn && !inTx)
+          doRIT();
+        else
+          doTuning();
       }
-      break;
-    case 1: //LSB calibration
-      calibrate();
       return;
+    case 1: //calibration
+      calibrate();
+      break;
     case 2: //set VFO drive level
       VFOdrive();
-      return;
+      break;
     case 3: // set tuning range
       set_tune_range();
-      return;
+      break;
     case 4: // set CW parameters
       set_CWparams();
       checkCW();
-      return;
+      break;
     case 5: // scan mode
       scan();
-      return;
+      break;
     case 6: // set scan paramaters
       scan_params();
-      return;
-    case 7: // monitor mode
+      break;
+    case 7: // A/B monitor mode
       scan();
-      return;
+      break;
   }
-
-  if (PTTsense_installed) {
-    checkCW();
-    checkTX();
-  }
-  save_frequency();
-  checkButton();
-  doTuning();
+  delay(100);
 }

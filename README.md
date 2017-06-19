@@ -5,15 +5,24 @@ This sketch is intended as universal, standard Raduino software that should alwa
 The sketch provides additional features such as USB, CW, RIT/SPLIT etc., but these will only become functional when the related (minimal) hardware mods are made. See the operating and modification instructions at https://github.com/amunters/bitx40/blob/master/operating%20instructions for full details.
 
 Important:
-This sketch is confirmed working OK with the si5351 library v2.01.
+This sketch is confirmed working OK with the si5351 library v2.0.5.
 Older library versions v1.xx definitely don't work (compilation errors).
-Newer versions (v2.02, v2.03, v2.04) compile OK but give strong pops/clicks in the speaker during tuning.
-This issue is still under investigation. See https://github.com/etherkit/Si5351Arduino/issues/44
-# Until this is solved, please use v2.01 of the si5351 library.
-The si5351 library v2.01 can be downloaded from https://github.com/etherkit/Si5351Arduino/releases/tag/v2.0.1
+Later versions (v2.02, v2.03, v2.04) compile OK but give strong pops/clicks in the speaker during tuning.
+The latest version 2.0.5 works OK with less tuning clicks.
+The SI5351 library can be downloaded from https://github.com/etherkit/Si5351Arduino
 
+I develop and maintain ham radio software as a hobby and distribute it for free. However, if you like this software, please consider to donate a small amount to my son's home who stays in an institute for kids with an intellectual disability and autism. The money will be used for adapted toys, a tricycle, a trampoline or a swing. Your support will be highly appreciated by this group of 6 young adolescents!
+
+[![Donate](https://www.paypalobjects.com/en_US/GB/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=PTAMBM6QT8LP8)
 
 Revision record
+
+v1.15
+- Added true RIT functionality (adjustable RX offset while TX frequency remains fixed) (2 Function Button presses)
+- The old 'RIT' function, based on switching between VFOs A/B, is now called "SPLIT" (3 presses)
+- Mode selection (4 presses) now rotates between LSB-USB-CWL-CWU
+- Major code cleanup to reduce memory usage
+- Inserted some delay in various routines to prevent annoying buzzing sound in SETTINGS menu
 
 v1.14.1
 - Corrected small bug in v1.14 that caused slight ticking noise when the radio was left idle.
