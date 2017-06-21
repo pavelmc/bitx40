@@ -1526,8 +1526,8 @@ void scan() {
 #define SMETER      (A6)
 #define SSAMPLE     5
 unsigned long stimeout = millis() + MINTERVAL;  // smeter timeout
-long smeterpool = 0;        // this will hold the sum of the 1/4 second
-static byte smeter = 0;     // this will hold the value of the smeter for the bar
+long smeterpool = 0;        // this will hold the sum of samples
+byte smeter = 0;     // this will hold the value of the smeter for the bar
 byte smcount = 0;
 
 byte barfull[8] = {
