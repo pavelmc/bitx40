@@ -1,29 +1,12 @@
 /**
-   Raduino_v1.17 for BITX40 - Allard Munters PE1NWL (pe1nwl@gooddx.net)
+    Raduino sketch for BITX40 transceiver Pavel's blend (Pavel CO7WT, pavelmc@gmail.com)
 
-   This source file is under General Public License version 3.
+    Based on the Raduino_v1.15 for BITX40 - Allard Munters PE1NWL (pe1nwl@gooddx.net)
 
-   Most source code are meant to be understood by the compilers and the computers.
-   Code that has to be hackable needs to be well understood and properly documented.
-   Donald Knuth coined the term Literate Programming to indicate code that is written be
-   easily read and understood.
-
-   The Raduino is a small board that includes the Arduin Nano, a 16x2 LCD display and
-   an Si5351a frequency synthesizer. This board is manufactured by Paradigm Ecomm Pvt Ltd
-
-   To learn more about Arduino you may visit www.arduino.cc.
-
-   The Arduino works by first executing the code in a function called setup() and then it
-   repeatedly keeps calling loop() forever. All the initialization code is kept in setup()
-   and code to continuously sense the tuning knob, the function button, transmit/receive,
-   etc is all in the loop() function. If you wish to study the code top down, then scroll
-   to the bottom of this file and read your way up.
-
-   Below are the libraries to be included for building the Raduino
-
-   The EEPROM library is used to store settings like the frequency memory, caliberation data, etc.
+    This source file is under General Public License version 3.
 */
 
+// EEPROM for settings
 #include <EEPROM.h>
 
 /**
@@ -31,21 +14,12 @@
     Raduino is the Si5351a. To learn more about Si5351a you can download the datasheet
     from www.silabs.com although, strictly speaking it is not a requirment to understand this code.
 
-    There are a few arduino control libraries for the Si5351, we used the Jason Mildrum, NT7S library in the past.
-    You can download it from https://github.com/etherkit/Si5351Arduino this lib is the most complete in
-    features and details, but we don't use it at full because we have a simple goal: simple transceiver control.
-
     We are using now the simple library built by Pavel, CO7WT, you can find it as always on Github
     https://github.com/pavelmc/si5351mcu/ this lib is simple, small and has all the features we need
     by using it we cut about 25% of the code without losing any feature.
 
-    Moreover, Pavel is a active bitx supporter and user.
-
-    Tip: by using the Pavel's lib you don't has to include nor initilize the Wire library, it does it for you.
+    Tip: by using the Pavel's lib you don't has to include nor initialize the Wire library, it does it for you.
 */
-
-//~ include <si5351.h> // https://github.com/etherkit/Si5351Arduino/releases/tag/v2.0.1
-//~ Si5351mcu si5351;
 
 #include <si5351mcu.h> // https://github.com/pavelmc/si5351mcu/
 Si5351mcu si5351;
