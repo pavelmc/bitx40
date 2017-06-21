@@ -199,6 +199,7 @@ int scan_step_delay; // step delay (ms)
    Raduino needs to keep track of current state of the transceiver. These are a few variables that do it
 */
 byte mode = LSB; // mode of the currently active VFO
+char *model[] = {" LSB", " USB", " CWL", " CWU"};
 bool inTx = false; // whether or not we are in transmit mode
 bool keyDown = false; // whether we have a key up or key down
 unsigned long TimeOut = 0;
@@ -306,20 +307,8 @@ void updateDisplay() {
   strcat(c, ".");
   strncat(c, &b[4], 1);
 
-  switch (mode) {
-    case LSB:
-      strcat(c, " LSB");
-      break;
-    case USB:
-      strcat(c, " USB");
-      break;
-    case CWL:
-      strcat(c, " CWL");
-      break;
-    case CWU:
-      strcat(c, " CWU");
-      break;
-  }
+    // simpler & efficient
+    strcat(c, model[mode]);
 
   if (inTx)
     strcat(c, " TX");
