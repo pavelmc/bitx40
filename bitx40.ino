@@ -396,17 +396,13 @@ void calibrate() {
     RUNmode = RUN_NORMAL;
     calbutton = false;
 
-    if (mode == USB) {
-      printLine2((char *)"USB Calibrated!");
-      //Write the 2 bytes of the USB offset into the eeprom memory.
-      EEPROM.put(4, USB_OFFSET);
-    }
+    if (mode == USB)
+        printLine2((char *)"USB Calibrated!");
+    else
+        printLine2((char *)"LSB Calibrated!");
 
-    else {
-      printLine2((char *)"LSB Calibrated!");
-      //Write the 2 bytes of the LSB offset into the eeprom memory.
-      EEPROM.put(2, cal);
-    }
+    // update the eeprom
+    saveEEPROM();
 
     delay(700);
     bleep(600, 50, 2);
@@ -496,14 +492,13 @@ void checkTX() {
 
     mode = mode & B11111101; // leave CW mode, return to SSB mode
 
-    if (!vfoActive) { // if VFO A is active
-      mode_A = mode;
-      EEPROM.put(24, mode_A);
-    }
-    else { // if VFO B is active
-      mode_B = mode;
-      EEPROM.put(25, mode_B);
-    }
+    if (!vfoActive)
+        mode_A = mode;      // if VFO A is active
+    else
+        mode_B = mode;      // if VFO B is active
+
+    // update eeprom data
+    saveEEPROM();
 
     setFrequency(frequency);
     shiftBase();
@@ -568,14 +563,13 @@ void checkCW() {
 
       mode = mode | 2; // go into to CW mode
 
-      if (!vfoActive) { // if VFO A is active
-        mode_A = mode;
-        EEPROM.put(24, mode_A);
-      }
-      else { // if VFO B is active
-        mode_B = mode;
-        EEPROM.put(25, mode_B);
-      }
+      if (!vfoActive)
+        mode_A = mode;  // if VFO A is active
+      else
+        mode_B = mode;  // if VFO B is active
+
+      // update the eeprom data
+      saveEEPROM();
 
       RXshift = 0;
       setFrequency(frequency);
@@ -764,7 +758,7 @@ void checkButton() {
 
     case 1: // swap the VFOs
       swapVFOs();
-      EEPROM.put(26, vfoActive);
+      saveEEPROM();
       delay(700);
       break;
 
@@ -883,7 +877,7 @@ void toggleRIT() {
   firstrun = true;
   if (splitOn) {
     splitOn = false;
-    EEPROM.put(27, 0);
+    saveEEPROM();
   }
   updateDisplay();
 }
@@ -895,7 +889,7 @@ void toggleSPLIT() {
     return;
   }
   splitOn = !splitOn; // toggle SPLIT
-  EEPROM.put(27, splitOn);
+  saveEEPROM();
   if (ritOn) {
     ritOn = false;
     RIT = RIT_old = 0;
@@ -925,14 +919,13 @@ void SetSideBand(byte drivelevel) {
 
   set_drive_level(drivelevel);
   setFrequency(frequency);
-  if (!vfoActive) { // if VFO A is active
-    mode_A = mode;
-    EEPROM.put(24, mode_A);
-  }
-  else { // if VFO B is active
-    mode_B = mode;
-    EEPROM.put(25, mode_B);
-  }
+  if (!vfoActive)
+    mode_A = mode;  // if VFO A is active
+  else
+    mode_B = mode;  // if VFO B is active
+
+  // update the epprom
+  saveEEPROM();
 }
 
 
@@ -943,8 +936,7 @@ void resetVFOs() {
   mode_A = mode_B = mode;
   updateDisplay();
   bleep(600, 50, 1);
-  EEPROM.put(24, mode_A);
-  EEPROM.put(25, mode_B);
+  saveEEPROM();
 }
 
 void VFOdrive() {
@@ -969,16 +961,14 @@ void VFOdrive() {
     RUNmode = RUN_NORMAL;
     printLine2((char *)"Drive level set!");
 
-    if (mode & 1) { // if UPPER side band mode
-      USBdrive = drive;
-      //Write the 2 bytes of the USBdrive level into the eeprom memory.
-      EEPROM.put(8, drive);
-    }
-    else { // if LOWER side band mode
-      LSBdrive = drive;
-      //Write the 2 bytes of the LSBdrive level into the eeprom memory.
-      EEPROM.put(6, drive);
-    }
+    if (mode & 1)
+      USBdrive = drive;     // if UPPER side band mode
+    else
+      LSBdrive = drive;     // if LOWER side band mode
+
+    // update the eeprom
+    saveEEPROM();
+
     delay(700);
     bleep(600, 50, 2);
     printLine2((char *)"--- SETTINGS ---");
@@ -1019,7 +1009,7 @@ void set_tune_range() {
   // if Fbutton is pressed again, we save the setting
   if (!digitalRead(FBUTTON)) {
     //Write the 2 bytes of the tuning range into the eeprom memory.
-    EEPROM.put(10, TUNING_RANGE);
+    saveEEPROM();
     printLine2((char *)"Tune range set!");
     RUNmode = RUN_NORMAL;
     delay(700);
@@ -1075,15 +1065,14 @@ void set_CWparams() {
   // if Fbutton is pressed again, we save the setting
   if (!digitalRead(FBUTTON)) {
     if (param == 1) {
-      EEPROM.get(36, CW_TIMEOUT); // restore CW_TIMEOUT to original value
       //Write the 2 bytes of the CW offset into the eeprom memory.
-      EEPROM.put(12, CW_OFFSET);
+      saveEEPROM();
       bleep(600, 50, 1);
       delay(200);
     }
     else {
       //Write the 2 bytes of the CW Timout into the eeprom memory.
-      EEPROM.put(36, CW_TIMEOUT);
+      saveEEPROM();
       printLine2((char *)"CW params set!");
       RUNmode = RUN_NORMAL;
       delay(700);
@@ -1199,28 +1188,28 @@ void scan_params() {
       case 1: // save the lower scan limit
 
         //Write the 2 bytes of the start freq into the eeprom memory.
-        EEPROM.put(28, scan_start_freq);
+        saveEEPROM();
         bleep(600, 50, 1);
         break;
 
       case 2: // save the upper scan limit
 
         //Write the 2 bytes of the stop freq into the eeprom memory.
-        EEPROM.put(30, scan_stop_freq);
+        saveEEPROM();
         bleep(600, 50, 1);
         break;
 
       case 3: // save the scan step size
 
         //Write the 2 bytes of the step size into the eeprom memory.
-        EEPROM.put(32, scan_step_freq);
+        saveEEPROM();
         bleep(600, 50, 1);
         break;
 
       case 4: // save the scan step delay
 
         //Write the 2 bytes of the step delay into the eeprom memory.
-        EEPROM.put(34, scan_step_delay);
+        saveEEPROM();
         printLine2((char *)"Scan params set!");
         RUNmode = RUN_NORMAL;
         delay(700);
@@ -1443,29 +1432,35 @@ void doTuning() {
 }
 
 byte raduino_version; //version identifier
+byte firmware_version; // version from the firmware
 
 void factory_settings() {
-  printLine1((char *)"loading standard");
-  printLine2((char *)"settings...");
-  EEPROM.put(0, raduino_version); //version identifier
-  EEPROM.put(2, 0); //cal offset value (0 Hz)
-  EEPROM.put(4, 1500); //USB offset (1500 Hz)
-  EEPROM.put(6, 4); //VFO drive level in LSB/CWL mode (4 mA)
-  EEPROM.put(8, 8); //VFO drive level in USB/CWU mode (8 mA)
-  EEPROM.put(10, 50); //tuning range (50 kHz)
-  EEPROM.put(12, 800); //CW offset / sidetone pitch (800 Hz)
-  EEPROM.put(16, 7125000UL); // VFO A frequency (7125 kHz)
-  EEPROM.put(20, 7125000UL); // VFO B frequency (7125 kHz)
-  EEPROM.put(24, 0); // mode VFO A (LSB)
-  EEPROM.put(25, 0); // mode VFO B (LSB)
-  EEPROM.put(26, false); // vfoActive (VFO A)
-  EEPROM.put(27, false); // SPLIT off
-  EEPROM.put(28, 7100); // scan_start_freq (7100 kHz)
-  EEPROM.put(30, 7150); // scan_stop_freq (7150 kHz)
-  EEPROM.put(32, 1000); // scan_step_freq (1000 Hz)
-  EEPROM.put(34, 500); // scan_step_delay (500 ms)
-  EEPROM.put(36, 350); // CW timout (350 ms)
-  delay(1000);
+    printLine1((char *)"loading standard");
+    printLine2((char *)"settings...");
+
+    // set all parameters to defaults and then force the update i the eeprom
+    firmware_version = raduino_version;    //version identifier
+    cal = 0;              //cal offset value (0 Hz)
+    USB_OFFSET = 1500;    //USB offset (1500 Hz)
+    LSBdrive = 4;         //VFO drive level in LSB/CWL mode (4 mA)
+    USBdrive = 8;         //VFO drive level in USB/CWU mode (8 mA)
+    TUNING_RANGE = 50;    //tuning range (50 kHz)
+    CW_OFFSET = 800;      //CW offset / sidetone pitch (800 Hz)
+    vfoA = 7125000UL;     // VFO A frequency (7125 kHz)
+    vfoB = 7125000UL;     // VFO B frequency (7125 kHz)
+    mode_A = 0;           // mode VFO A (LSB)
+    mode_B = 0;           // mode VFO B (LSB)
+    vfoActive = false;    // vfoActive (VFO A)
+    splitOn = false;      // SPLIT off
+    scan_start_freq = 7110;   // scan_start_freq (7100 kHz)
+    scan_stop_freq = 7150;    // scan_stop_freq (7150 kHz)
+    scan_step_freq = 1000;    // scan_step_freq (1000 Hz)
+    scan_step_delay = 500;    // scan_step_delay (500 ms)
+    CW_TIMEOUT = 350;         // CW timout (350 ms)
+
+    // reset eeprom data
+    saveEEPROM();
+    delay(1000);
 }
 
 // save the VFO frequencies when they haven't changed more than 500Hz in the past 30 seconds
@@ -1476,8 +1471,7 @@ void save_frequency() {
   static unsigned long old_vfoA, old_vfoB;
   if ((abs(vfoA - old_vfoA) < 500UL) && (abs(vfoB - old_vfoB) < 500UL)) {
     if (millis() - t3 > 30000) {
-      EEPROM.put(16, old_vfoA); // save VFO_A frequency
-      EEPROM.put(20, old_vfoB); // save VFO_B frequency
+      saveEEPROM();
       t3 = millis();
     }
   }
@@ -1614,6 +1608,90 @@ void smeter_check() {
     }
 }
 
+/**
+    EEPROM related procedures, to simplify the EEPROM management
+
+ **/
+
+// structured data: Main Configuration Parameters
+struct mConf {
+    byte version;
+    int cal;
+    int usboffset;
+    byte ldrive;
+    byte udrive;
+    int trange;
+    int cwoffset;
+    unsigned long vfoa;
+    unsigned long vfob;
+    byte modea;
+    byte modeb;
+    bool vfoactive;
+    bool split;
+    int scstartf;
+    int scstopf;
+    int scstepf;
+    int scstepd;
+    int cwtimeout;
+};
+
+// declaring the main configuration variable for mem storage
+struct mConf conf;
+
+// initialize the EEPROM mem, also used to store the values in the setup mode
+// this procedure has a protection for the EEPROM life using update semantics
+// it actually only write a cell if it has changed
+void saveEEPROM() {
+    // get the parameters from the environment
+    conf.version    = raduino_version;
+    conf.cal        = cal;
+    conf.usboffset  = USB_OFFSET;
+    conf.ldrive     = LSBdrive;
+    conf.udrive     = USBdrive;
+    conf.trange     = TUNING_RANGE;
+    conf.cwoffset   = CW_OFFSET;
+    conf.vfoa       = vfoA;
+    conf.vfob       = vfoB;
+    conf.modea      = mode_A;
+    conf.modeb      = mode_B;
+    conf.vfoactive  = vfoActive;
+    conf.split      = splitOn;
+    conf.scstartf   = scan_start_freq;
+    conf.scstopf    = scan_stop_freq;
+    conf.scstepf    = scan_step_freq;
+    conf.scstepd    = scan_step_delay;
+    conf.cwtimeout  = CW_TIMEOUT;
+
+    // write it
+    EEPROM.put(0, conf);
+}
+
+
+// load the eprom contents
+void loadEEPROMConfig() {
+    // read it
+    EEPROM.get(0, conf);
+
+    // put the parameters into the environment
+    firmware_version    = conf.version;
+    cal                 = conf.cal;
+    LSBdrive            = conf.ldrive;
+    USBdrive            = conf.udrive;
+    TUNING_RANGE        = conf.trange;
+    CW_OFFSET           = conf.cwoffset;
+    vfoA                = conf.vfoa;
+    vfoB                = conf.vfob;
+    mode_A              = conf.modea;
+    mode_B              = conf.modeb;
+    vfoActive           = conf.vfoactive;
+    splitOn             = conf.split;
+    scan_start_freq     = conf.scstartf;
+    scan_stop_freq      = conf.scstopf;
+    scan_step_freq      = conf.scstepf;
+    scan_step_delay     = conf.scstepd;
+    CW_TIMEOUT          = conf.cwtimeout;
+}
+
 
 /**
    setup is called on boot up
@@ -1662,9 +1740,8 @@ void setup() {
   // when Fbutton or CALbutton is pressed during power up,
   // or after a version update,
   // then all settings will be restored to the standard "factory" values
-  byte old_version;
-  EEPROM.get(0, old_version); // previous sketch version
-  if (!digitalRead(CAL_BUTTON) || !digitalRead(FBUTTON) || (old_version != raduino_version)) {
+  loadEEPROMConfig();
+  if (!digitalRead(CAL_BUTTON) || !digitalRead(FBUTTON) || (firmware_version != raduino_version)) {
     factory_settings();
   }
 
@@ -1677,29 +1754,9 @@ void setup() {
   printLine1(c);
   delay(1000);
 
-  //retrieve user settings from EEPROM
-  EEPROM.get(2, cal);
-  EEPROM.get(4, USB_OFFSET);
-
   //display warning message when calibration data was erased
   if ((cal == 0) && (USB_OFFSET == 1500))
     printLine2((char *)"uncalibrated!");
-
-  EEPROM.get(6, LSBdrive);
-  EEPROM.get(8, USBdrive);
-  EEPROM.get(10, TUNING_RANGE);
-  EEPROM.get(12, CW_OFFSET);
-  EEPROM.get(16, vfoA);
-  EEPROM.get(20, vfoB);
-  EEPROM.get(24, mode_A);
-  EEPROM.get(25, mode_B);
-  EEPROM.get(26, vfoActive);
-  EEPROM.get(27, splitOn);
-  EEPROM.get(28, scan_start_freq);
-  EEPROM.get(30, scan_stop_freq);
-  EEPROM.get(32, scan_step_freq);
-  EEPROM.get(34, scan_step_delay);
-  EEPROM.get(36, CW_TIMEOUT);
 
   //initialize the SI5351
   // lib default is 27.000 Mhz, we use 25.000  Mhz
