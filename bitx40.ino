@@ -88,8 +88,8 @@ char c[17], b[10], printBuff1[17], printBuff2[17];
 
 #define PTT_SENSE (A0)
 #define KEY (A1)
-#define CAL_BUTTON (4)  // A2
-#define FBUTTON (2)  // A3
+#define CAL_BUTTON (A2)
+#define FBUTTON (A3)
 #define ANALOG_TUNING (A7)
 
 bool PTTsense_installed; //whether or not the PTT sense line is installed (detected automatically during startup)
