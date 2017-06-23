@@ -88,9 +88,24 @@ char c[17], b[10], printBuff1[17], printBuff2[17];
 
 #define PTT_SENSE (A0)
 #define KEY (A1)
-#define CAL_BUTTON (A2)
-#define FBUTTON (A3)
 #define ANALOG_TUNING (A7)
+
+/*
+ * I confess, have killed some of the arduino pins, so I have to re-wire my arduino using
+ * some free wires, if you are in my situation just uncomment and adapt the following code
+ *
+ */
+
+#define KILLED_PINS true
+
+#ifdef KILLED_PINS
+    #define CAL_BUTTON (4)
+    #define FBUTTON (2)
+#else
+    #define CAL_BUTTON (A2)
+    #define FBUTTON (A3)
+#endif
+
 
 bool PTTsense_installed; //whether or not the PTT sense line is installed (detected automatically during startup)
 
@@ -226,6 +241,27 @@ unsigned long frequency; // the 'dial' frequency as shown on the display
 #define RUN_MONITOR (7) // frequency scanning mode
 
 byte RUNmode = RUN_NORMAL;
+
+/**
+    S-meter/TX-Power defines and vars
+
+    This needs a group of mods described in the files
+    * smeter_mod.png
+    * tx-meter.png
+    * tx_power_mod.md
+    * agc_mod.png
+
+    You can find them on this project folder
+*/
+#define MINTERVAL   10      // msecs, how often we sample the signal
+#define SMETER      (A6)    // Analog input
+#define AGC         3       // PWM pin for AGC
+#define SSAMPLE     3       // how many samples to average
+unsigned long stimeout = millis() + MINTERVAL;  // smeter timeout
+word smeterpool = 0;    // this will hold the sum of samples
+word smeter = 0;        // this will hold the value of the smeter for the bar
+byte smcount = 0;       // how many samples lies on smeterpool
+
 
 /**
    Display Routines
@@ -1473,95 +1509,40 @@ void scan() {
   }
 }
 
-
 /**
-    Smeter functions, defines and vars
-
-    This needs a mod described in the smeter_mod.png file on the project folder
+     S-meter/TX-meter functions
 */
-#define MINTERVAL   25
-#define SMETER      (A6)
-#define SSAMPLE     5
-unsigned long stimeout = millis() + MINTERVAL;  // smeter timeout
-long smeterpool = 0;        // this will hold the sum of samples
-byte smeter = 0;     // this will hold the value of the smeter for the bar
-byte smcount = 0;
-
-byte barfull[8] = {
-    B00000,
-    B11011,
-    B11011,
-    B11011,
-    B11011,
-    B11011,
-    B11011,
-    B00000
-};
-
-byte barhalf[8] = {
-    B00000,
-    B11000,
-    B11000,
-    B11000,
-    B11000,
-    B11000,
-    B11000,
-    B00000
-};
-
-void smeter_show() {
-    // average the pool
-    smeterpool /= SSAMPLE;
-
-    // AGC
-    analogWrite(3, smeterpool/4);   // scaled down to 255 from 1023
-
-    // scale down to 0-31 for the LCD (/33)
-    smeterpool /= 33;
-
-    // add the average to the last sample
-    // and average again to get persistence & decay
-    smeterpool = byte((smeterpool + smeter) / 2);
-
-    // update the smeter on the LCD just if needed
-    if (smeterpool != smeter) {
-        // update it
-        smeter = smeterpool;
-        lcd.setCursor(0, 1);
-
-        // printing bars
-        // print full bars
-        byte t = smeter / 2;
-        while (t) {
-            lcd.write(byte(0));
-            t--;
-        }
-
-        // half bars / 1
-        if (smeter % 2 == 1) lcd.write(byte(1));
-
-        // print spaces
-        // spaces are 2x, so scalling
-        t = (31 - smeter) / 2;
-        while (t) {
-            lcd.print(" ");
-            t--;
-        }
-    }
-}
-
 void smeter_check() {
+    // just every MINTERVAL
     if (stimeout < millis()) {
-        // measeure and count
+        // now, measure and count
         smeterpool += analogRead(SMETER);
         smcount += 1;
 
         // check if we need to update the lcd
         if (smcount == SSAMPLE) {
-            // update the display
-            smeter_show();
+            // yes, we have to
 
-            // reset
+            // add the last reading to the pool to get persistence and decay
+            smeter = (smeterpool + smeter) / (SSAMPLE + 1);
+
+            // AGC
+            analogWrite(AGC, smeter / 4);   // scaled down to 255 from 1023
+
+            // cleaning the buffer
+            memset(c, 0, sizeof(c));
+
+            // print to buffer
+            byte t = byte(smeter / 68);     // scale down from 0-1023 to 0-15
+            while (t) {
+                strcat(c, "#");
+                t--;
+            }
+
+            // ping buffer in the second line
+            printLine2(c);
+
+            // reset counters for the next cycle
             smcount = 0;
             smeterpool = 0;
         }
@@ -1668,12 +1649,8 @@ void setup() {
   raduino_version = 16;
   strcpy (c, "Raduino v1.17");
 
-  // define chars for the SMETER bar
-  lcd.createChar(0, barfull);
-  lcd.createChar(1, barhalf);
-
-  // pin3 OUT for AGC
-  pinMode(3, OUTPUT);
+  // pin OUT for AGC
+  pinMode(AGC, OUTPUT);
 
   lcd.begin(16, 2);
   printBuff1[0] = 0;
@@ -1778,8 +1755,12 @@ void loop() {
         delay(2000);
       }
       else {
-        if (clicks == 0 && !ritOn && !inTx)
-          printLine2((char *)" ");
+        // smeter in rx mode
+        if (clicks == 0 && !ritOn && !inTx) smeter_check();
+
+        // power meter in tx mode
+        if (inTx) smeter_check();
+
         if (PTTsense_installed) {
           checkCW();
           checkTX();
@@ -1791,8 +1772,6 @@ void loop() {
         else
           doTuning();
 
-        // smeter routines
-        smeter_check();
       }
       return;
     case 1: //calibration
