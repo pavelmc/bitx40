@@ -858,108 +858,110 @@ void toggleRIT() {
 
 
 void toggleSPLIT() {
-  if (!PTTsense_installed) {
-    printLine2((char *)"Not available!");
-    return;
-  }
-  splitOn = !splitOn; // toggle SPLIT
-  saveEEPROM();
-  if (ritOn) {
-    ritOn = false;
-    RIT = RIT_old = 0;
-    shiftBase();
-  }
-  updateDisplay();
+    if (!PTTsense_installed) {
+        printLine2((char *)"Not available!");
+        return;
+    }
+
+    // toggle SPLIT
+    splitOn = !splitOn;
+    saveEEPROM();
+
+    if (ritOn) {
+        ritOn = false;
+        RIT = RIT_old = 0;
+        shiftBase();
+    }
+
+    // update display either way
+    updateDisplay();
 }
 
 void toggleMode() {
-  if (PTTsense_installed)
-    mode = (mode + 1) & 3; // rotate through LSB-USB-CWL-CWU
-  else
-    mode = (mode + 1) & 1; // switch between LSB and USB only (no CW)
+    if (PTTsense_installed)
+        mode = (mode + 1) & 3; // rotate through LSB-USB-CWL-CWU
+    else
+        mode = (mode + 1) & 1; // switch between LSB and USB only (no CW)
 
-  if (mode & 2) // if we are in CW mode
-    RXshift = CW_OFFSET;
-  else // if we are in SSB mode
-    RXshift = 0;
+    if (mode & 2) // if we are in CW mode
+        RXshift = CW_OFFSET;
+    else // if we are in SSB mode
+        RXshift = 0;
 
-  if (mode & 1) // if we are in UPPER side band mode
-    SetSideBand(USBdrive);
-  else // if we are in LOWER side band mode
-    SetSideBand(LSBdrive);
+    if (mode & 1) // if we are in UPPER side band mode
+        SetSideBand(USBdrive);
+    else // if we are in LOWER side band mode
+        SetSideBand(LSBdrive);
 }
 
 void SetSideBand(byte drivelevel) {
+    set_drive_level(drivelevel);
+    setFrequency(frequency);
 
-  set_drive_level(drivelevel);
-  setFrequency(frequency);
-  if (!vfoActive)
-    mode_A = mode;  // if VFO A is active
-  else
-    mode_B = mode;  // if VFO B is active
+    if (!vfoActive)
+        mode_A = mode;  // if VFO A is active
+    else
+        mode_B = mode;  // if VFO B is active
 
-  // update the epprom
-  saveEEPROM();
+    // update the epprom
+    saveEEPROM();
 }
 
 
 // resetting the VFO's will set both VFO's to the current frequency and mode
 void resetVFOs() {
-  printLine2((char *)"VFO A=B !");
-  vfoA = vfoB = frequency;
-  mode_A = mode_B = mode;
-  updateDisplay();
-  bleep(600, 50, 1);
-  saveEEPROM();
+    printLine2((char *)"VFO A=B !");
+    vfoA = vfoB = frequency;
+    mode_A = mode_B = mode;
+    updateDisplay();
+    bleep(600, 50, 1);
+    saveEEPROM();
 }
 
 void VFOdrive() {
-  static byte drive;
+    static byte drive;
 
-  if (RUNmode != RUN_DRIVELEVEL) {
+    if (RUNmode != RUN_DRIVELEVEL) {
+        if (mode & 1) // if UPPER side band mode
+            current_setting = USBdrive / 2 - 1;
+        else // if LOWER side band mode
+            current_setting = LSBdrive / 2 - 1;
 
-    if (mode & 1) // if UPPER side band mode
-      current_setting = USBdrive / 2 - 1;
-    else // if LOWER side band mode
-      current_setting = LSBdrive / 2 - 1;
+        shift = analogRead(ANALOG_TUNING);
+    }
 
-    shift = analogRead(ANALOG_TUNING);
-  }
+    //generate drive level values 2,4,6,8 from tuning pot
+    drive = 2 * ((((analogRead(ANALOG_TUNING) - shift) / 50 + current_setting) & 3) + 1);
 
-  //generate drive level values 2,4,6,8 from tuning pot
-  drive = 2 * ((((analogRead(ANALOG_TUNING) - shift) / 50 + current_setting) & 3) + 1);
+    // if Fbutton is pressed again, we save the setting
+    if (!digitalRead(FBUTTON)) {
+        RUNmode = RUN_NORMAL;
+        printLine2((char *)"Drive level set!");
 
-  // if Fbutton is pressed again, we save the setting
+        if (mode & 1)
+            USBdrive = drive;     // if UPPER side band mode
+        else
+            LSBdrive = drive;     // if LOWER side band mode
 
-  if (!digitalRead(FBUTTON)) {
-    RUNmode = RUN_NORMAL;
-    printLine2((char *)"Drive level set!");
+        // update the eeprom
+        saveEEPROM();
 
-    if (mode & 1)
-      USBdrive = drive;     // if UPPER side band mode
-    else
-      LSBdrive = drive;     // if LOWER side band mode
+        delay(700);
+        bleep(600, 50, 2);
+        printLine2((char *)"--- SETTINGS ---");
+        shiftBase(); //align the current knob position with the current frequency
+    } else {
+        // while the drive level adjustment is in progress, keep tweaking the
+        // drive level as read out by the knob and display it in the second line
+        RUNmode = RUN_DRIVELEVEL;
+        set_drive_level(drive);
 
-    // update the eeprom
-    saveEEPROM();
-
-    delay(700);
-    bleep(600, 50, 2);
-    printLine2((char *)"--- SETTINGS ---");
-    shiftBase(); //align the current knob position with the current frequency
-  }
-  else {
-    // while the drive level adjustment is in progress, keep tweaking the
-    // drive level as read out by the knob and display it in the second line
-    RUNmode = RUN_DRIVELEVEL;
-    set_drive_level(drive);
-
-    itoa(drive, b, DEC);
-    strcpy(c, "drive level ");
-    strcat(c, b);
-    strcat(c, "mA");
-    printLine2(c);
-  }
+        itoa(drive, b, DEC);
+        strcpy(c, "drive level ");
+        strcat(c, b);
+        strcat(c, "mA");
+        printLine2(c);
+    }
 }
 
 /* this function allows the user to set the tuning range depending on the type of potentiometer
@@ -967,289 +969,270 @@ void VFOdrive() {
   for a 10-turn pot, a tuning range of 200 kHz is recommended
 */
 void set_tune_range() {
+    if (RUNmode != RUN_TUNERANGE) {
+        current_setting = TUNING_RANGE;
+        shift = current_setting - 10 * analogRead(ANALOG_TUNING) / 20;
+    }
 
-  if (RUNmode != RUN_TUNERANGE) {
-    current_setting = TUNING_RANGE;
-    shift = current_setting - 10 * analogRead(ANALOG_TUNING) / 20;
-  }
+    //generate values 10-500 from the tuning pot
+    TUNING_RANGE = constrain(10 * analogRead(ANALOG_TUNING) / 20 + shift, 10, 500);
+    if (analogRead(ANALOG_TUNING) < 5 && TUNING_RANGE > 10)
+        shift = shift - 10;
+    else if (analogRead(ANALOG_TUNING) > 1020 && TUNING_RANGE < 500)
+        shift = shift + 10;
 
-  //generate values 10-500 from the tuning pot
-  TUNING_RANGE = constrain(10 * analogRead(ANALOG_TUNING) / 20 + shift, 10, 500);
-  if (analogRead(ANALOG_TUNING) < 5 && TUNING_RANGE > 10)
-    shift = shift - 10;
-  else if (analogRead(ANALOG_TUNING) > 1020 && TUNING_RANGE < 500)
-    shift = shift + 10;
-
-  // if Fbutton is pressed again, we save the setting
-  if (!digitalRead(FBUTTON)) {
-    //Write the 2 bytes of the tuning range into the eeprom memory.
-    saveEEPROM();
-    printLine2((char *)"Tune range set!");
-    RUNmode = RUN_NORMAL;
-    delay(700);
-    bleep(600, 50, 2);
-    printLine2((char *)"--- SETTINGS ---");
-    shiftBase(); //align the current knob position with the current frequency
-  }
-
-  else {
-    RUNmode = RUN_TUNERANGE;
-    itoa(TUNING_RANGE, b, DEC);
-    strcpy(c, "range ");
-    strcat(c, b);
-    strcat(c, " kHz");
-    printLine2(c);
-  }
+    // if Fbutton is pressed again, we save the setting
+    if (!digitalRead(FBUTTON)) {
+        //Write the 2 bytes of the tuning range into the eeprom memory.
+        saveEEPROM();
+        printLine2((char *)"Tune range set!");
+        RUNmode = RUN_NORMAL;
+        delay(700);
+        bleep(600, 50, 2);
+        printLine2((char *)"--- SETTINGS ---");
+        shiftBase(); //align the current knob position with the current frequency
+    } else {
+        RUNmode = RUN_TUNERANGE;
+        itoa(TUNING_RANGE, b, DEC);
+        strcpy(c, "range ");
+        strcat(c, b);
+        strcat(c, " kHz");
+        printLine2(c);
+    }
 }
 
 /* this function allows the user to set the two CW parameters: CW-OFFSET (sidetone pitch) and CW-TIMEOUT.
 */
 
 void set_CWparams() {
+    if (firstrun) {
+        if (param == 1) {
+            // during CW offset adjustment, temporarily set CW_TIMEOUT to minimum
+            CW_TIMEOUT = 10;
+            current_setting = CW_OFFSET;
+            shift = current_setting - analogRead(ANALOG_TUNING) - 200;
+        } else {
+            current_setting = CW_TIMEOUT;
+            shift = current_setting - 10 * (analogRead(ANALOG_TUNING) / 10);
+        }
+    }
 
-  if (firstrun) {
     if (param == 1) {
-      CW_TIMEOUT = 10; // during CW offset adjustment, temporarily set CW_TIMEOUT to minimum
-      current_setting = CW_OFFSET;
-      shift = current_setting - analogRead(ANALOG_TUNING) - 200;
-    }
-    else {
-      current_setting = CW_TIMEOUT;
-      shift = current_setting - 10 * (analogRead(ANALOG_TUNING) / 10);
-    }
-  }
+        //generate values 500-1000 from the tuning pot
+        CW_OFFSET = constrain(analogRead(ANALOG_TUNING) + 200 + shift, 200, 1200);
 
-  if (param == 1) {
-    //generate values 500-1000 from the tuning pot
-    CW_OFFSET = constrain(analogRead(ANALOG_TUNING) + 200 + shift, 200, 1200);
-    if (analogRead(ANALOG_TUNING) < 5 && CW_OFFSET > 200)
-      shift = shift - 10;
-    else if (analogRead(ANALOG_TUNING) > 1020 && CW_OFFSET < 1200)
-      shift = shift + 10;
-  }
-  else {
-    //generate values 0-1000 from the tuning pot
-    CW_TIMEOUT = constrain(10 * ( analogRead(ANALOG_TUNING) / 10) + shift, 0, 1000);
-    if (analogRead(ANALOG_TUNING) < 5 && CW_TIMEOUT > 10)
-      shift = shift - 10;
-    else if (analogRead(ANALOG_TUNING) > 1020 && CW_TIMEOUT < 1000)
-      shift = shift + 10;
-  }
+        if (analogRead(ANALOG_TUNING) < 5 && CW_OFFSET > 200)
+            shift = shift - 10;
+        else if (analogRead(ANALOG_TUNING) > 1020 && CW_OFFSET < 1200)
+            shift = shift + 10;
+    } else {
+        //generate values 0-1000 from the tuning pot
+        CW_TIMEOUT = constrain(10 * ( analogRead(ANALOG_TUNING) / 10) + shift, 0, 1000);
 
-  // if Fbutton is pressed again, we save the setting
-  if (!digitalRead(FBUTTON)) {
-    if (param == 1) {
-      //Write the 2 bytes of the CW offset into the eeprom memory.
-      saveEEPROM();
-      bleep(600, 50, 1);
-      delay(200);
+        if (analogRead(ANALOG_TUNING) < 5 && CW_TIMEOUT > 10)
+            shift = shift - 10;
+        else if (analogRead(ANALOG_TUNING) > 1020 && CW_TIMEOUT < 1000)
+            shift = shift + 10;
     }
-    else {
-      //Write the 2 bytes of the CW Timout into the eeprom memory.
-      saveEEPROM();
-      printLine2((char *)"CW params set!");
-      RUNmode = RUN_NORMAL;
-      delay(700);
-      bleep(600, 50, 2);
-      printLine2((char *)"--- SETTINGS ---");
-      shiftBase(); //align the current knob position with the current frequency
-    }
-    param ++;
-    firstrun = true;
-  }
 
-  else {
-    RUNmode = RUN_CWOFFSET;
-    firstrun = false;
-    if (param == 1) {
-      itoa(CW_OFFSET, b, DEC);
-      strcpy(c, "sidetone ");
-      strcat(c, b);
-      strcat(c, " Hz");
+    // if Fbutton is pressed again, we save the setting
+    if (!digitalRead(FBUTTON)) {
+        if (param == 1) {
+            //Write the 2 bytes of the CW offset into the eeprom memory.
+            saveEEPROM();
+            bleep(600, 50, 1);
+            delay(200);
+        } else {
+            //Write the 2 bytes of the CW Timout into the eeprom memory.
+            saveEEPROM();
+            printLine2((char *)"CW params set!");
+            RUNmode = RUN_NORMAL;
+            delay(700);
+            bleep(600, 50, 2);
+            printLine2((char *)"--- SETTINGS ---");
+            shiftBase(); //align the current knob position with the current frequency
+        }
+
+        param ++;
+        firstrun = true;
+    } else {
+        RUNmode = RUN_CWOFFSET;
+        firstrun = false;
+
+        if (param == 1) {
+            itoa(CW_OFFSET, b, DEC);
+            strcpy(c, "sidetone ");
+            strcat(c, b);
+            strcat(c, " Hz");
+        } else {
+            itoa(CW_TIMEOUT, b, DEC);
+            strcpy(c, "timeout ");
+            strcat(c, b);
+            strcat(c, " ms");
+        }
+
+        printLine2(c);
     }
-    else {
-      itoa(CW_TIMEOUT, b, DEC);
-      strcpy(c, "timeout ");
-      strcat(c, b);
-      strcat(c, " ms");
-    }
-    printLine2(c);
-  }
 }
 
 /* this function allows the user to set the 4 scan parameters: lower limit, upper limit, step size and step delay
 */
 
 void scan_params() {
+    if (firstrun) {
+        switch (param) {
 
-  if (firstrun) {
+            case 1: // set the lower scan limit
+                current_setting = scan_start_freq;
+                shift = current_setting - analogRead(ANALOG_TUNING) / 2 - 7000;
+                break;
+
+            case 2: // set the upper scan limit
+                current_setting = scan_stop_freq;
+                shift = current_setting - map(analogRead(ANALOG_TUNING), 0, 1024, scan_start_freq, 7500);
+                break;
+
+            case 3: // set the scan step size
+                current_setting = scan_step_freq;
+                shift = current_setting - 50 * (analogRead(ANALOG_TUNING) / 5);
+                break;
+
+            case 4: // set the scan step delay
+                current_setting = scan_step_delay;
+                shift = current_setting - 50 * (analogRead(ANALOG_TUNING) / 25);
+                break;
+        }
+    }
+
     switch (param) {
 
-      case 1: // set the lower scan limit
+        case 1: // set the lower scan limit
+            //generate values 7000-7500 from the tuning pot
+            scan_start_freq = constrain(analogRead(ANALOG_TUNING) / 2 + 7000 + shift, 7000, 7500);
 
-        current_setting = scan_start_freq;
-        shift = current_setting - analogRead(ANALOG_TUNING) / 2 - 7000;
-        break;
+            if (analogRead(ANALOG_TUNING) < 5 && scan_start_freq > 7000)
+                shift = shift - 1;
+            else if (analogRead(ANALOG_TUNING) > 1020 && scan_start_freq < 7500)
+                shift = shift + 1;
+            break;
 
-      case 2: // set the upper scan limit
+        case 2: // set the upper scan limit
+            //generate values 7000-7500 from the tuning pot
+            scan_stop_freq = constrain(map(analogRead(ANALOG_TUNING), 0, 1024, scan_start_freq, 7500) + shift, scan_start_freq, 7500);
 
-        current_setting = scan_stop_freq;
-        shift = current_setting - map(analogRead(ANALOG_TUNING), 0, 1024, scan_start_freq, 7500);
-        break;
+            if (analogRead(ANALOG_TUNING) < 5 && scan_stop_freq > scan_start_freq)
+                shift = shift - 1;
+            else if (analogRead(ANALOG_TUNING) > 1020 && scan_stop_freq < 7500)
+                shift = shift + 1;
+            break;
 
-      case 3: // set the scan step size
+        case 3: // set the scan step size
+            //generate values 50-10000 from the tuning pot
+            scan_step_freq = constrain(50 * (analogRead(ANALOG_TUNING) / 5) + shift, 50, 10000);
 
-        current_setting = scan_step_freq;
-        shift = current_setting - 50 * (analogRead(ANALOG_TUNING) / 5);
-        break;
+            if (analogRead(ANALOG_TUNING) < 5 && scan_step_freq > 50)
+                shift = shift - 50;
+            else if (analogRead(ANALOG_TUNING) > 1020 && scan_step_freq < 10000)
+                shift = shift + 50;
+            break;
 
-      case 4: // set the scan step delay
-
-        current_setting = scan_step_delay;
-        shift = current_setting - 50 * (analogRead(ANALOG_TUNING) / 25);
-        break;
+        case 4: // set the scan step delay
+            //generate values 0-2500 from the tuning pot
+            scan_step_delay = constrain(50 * (analogRead(ANALOG_TUNING) / 25) + shift, 0, 2000);
+            if (analogRead(ANALOG_TUNING) < 5 && scan_step_delay > 0)
+                shift = shift - 50;
+            else if (analogRead(ANALOG_TUNING) > 1020 && scan_step_delay < 2000)
+                shift = shift + 50;
+            break;
     }
-  }
 
-  switch (param) {
+    // if Fbutton is pressed, we save the setting
 
-    case 1: // set the lower scan limit
+    if (!digitalRead(FBUTTON)) {
+        switch (param) {
+            case 1: // save the lower scan limit
+                //Write the 2 bytes of the start freq into the eeprom memory.
+                saveEEPROM();
+                bleep(600, 50, 1);
+                break;
 
-      //generate values 7000-7500 from the tuning pot
-      scan_start_freq = constrain(analogRead(ANALOG_TUNING) / 2 + 7000 + shift, 7000, 7500);
-      if (analogRead(ANALOG_TUNING) < 5 && scan_start_freq > 7000)
-        shift = shift - 1;
-      else if (analogRead(ANALOG_TUNING) > 1020 && scan_start_freq < 7500)
-        shift = shift + 1;
-      break;
+            case 2: // save the upper scan limit
+                //Write the 2 bytes of the stop freq into the eeprom memory.
+                saveEEPROM();
+                bleep(600, 50, 1);
+                break;
 
-    case 2: // set the upper scan limit
+            case 3: // save the scan step size
+                //Write the 2 bytes of the step size into the eeprom memory.
+                saveEEPROM();
+                bleep(600, 50, 1);
+                break;
 
-      //generate values 7000-7500 from the tuning pot
-      scan_stop_freq = constrain(map(analogRead(ANALOG_TUNING), 0, 1024, scan_start_freq, 7500) + shift, scan_start_freq, 7500);
-      if (analogRead(ANALOG_TUNING) < 5 && scan_stop_freq > scan_start_freq)
-        shift = shift - 1;
-      else if (analogRead(ANALOG_TUNING) > 1020 && scan_stop_freq < 7500)
-        shift = shift + 1;
-      break;
+            case 4: // save the scan step delay
+                //Write the 2 bytes of the step delay into the eeprom memory.
+                saveEEPROM();
+                printLine2((char *)"Scan params set!");
+                RUNmode = RUN_NORMAL;
+                delay(700);
+                bleep(600, 50, 2);
+                printLine2((char *)"--- SETTINGS ---");
+                shiftBase(); //align the current knob position with the current frequency
+                break;
+        }
 
-    case 3: // set the scan step size
+        param ++;
+        firstrun = true;
+    } else {
+        RUNmode = RUN_SCAN_PARAMS;
+        firstrun = false;
+        switch (param) {
+            case 1: // display the lower scan limit
+                itoa(scan_start_freq, b, DEC);
+                strcpy(c, "lower ");
+                strcat(c, b);
+                strcat(c, " kHz");
+                break;
 
-      //generate values 50-10000 from the tuning pot
-      scan_step_freq = constrain(50 * (analogRead(ANALOG_TUNING) / 5) + shift, 50, 10000);
-      if (analogRead(ANALOG_TUNING) < 5 && scan_step_freq > 50)
-        shift = shift - 50;
-      else if (analogRead(ANALOG_TUNING) > 1020 && scan_step_freq < 10000)
-        shift = shift + 50;
-      break;
+            case 2: // display the upper scan limit
+                itoa(scan_stop_freq, b, DEC);
+                strcpy(c, "upper ");
+                strcat(c, b);
+                strcat(c, " kHz");
+                break;
 
-    case 4: // set the scan step delay
+            case 3: // display the scan step size
+                itoa(scan_step_freq, b, DEC);
+                strcpy(c, "step ");
+                strcat(c, b);
+                strcat(c, " Hz");
+                break;
 
-      //generate values 0-2500 from the tuning pot
-      scan_step_delay = constrain(50 * (analogRead(ANALOG_TUNING) / 25) + shift, 0, 2000);
-      if (analogRead(ANALOG_TUNING) < 5 && scan_step_delay > 0)
-        shift = shift - 50;
-      else if (analogRead(ANALOG_TUNING) > 1020 && scan_step_delay < 2000)
-        shift = shift + 50;
-      break;
-  }
+            case 4: // display the scan step delay
+                itoa(scan_step_delay, b, DEC);
+                strcpy(c, "delay ");
+                strcat(c, b);
+                strcat(c, " ms");
+                break;
+        }
 
-  // if Fbutton is pressed, we save the setting
-
-  if (!digitalRead(FBUTTON)) {
-    switch (param) {
-
-      case 1: // save the lower scan limit
-
-        //Write the 2 bytes of the start freq into the eeprom memory.
-        saveEEPROM();
-        bleep(600, 50, 1);
-        break;
-
-      case 2: // save the upper scan limit
-
-        //Write the 2 bytes of the stop freq into the eeprom memory.
-        saveEEPROM();
-        bleep(600, 50, 1);
-        break;
-
-      case 3: // save the scan step size
-
-        //Write the 2 bytes of the step size into the eeprom memory.
-        saveEEPROM();
-        bleep(600, 50, 1);
-        break;
-
-      case 4: // save the scan step delay
-
-        //Write the 2 bytes of the step delay into the eeprom memory.
-        saveEEPROM();
-        printLine2((char *)"Scan params set!");
-        RUNmode = RUN_NORMAL;
-        delay(700);
-        bleep(600, 50, 2);
-        printLine2((char *)"--- SETTINGS ---");
-        shiftBase(); //align the current knob position with the current frequency
-        break;
+        // print line 2
+        printLine2(c);
     }
-    param ++;
-    firstrun = true;
-  }
-
-  else {
-    RUNmode = RUN_SCAN_PARAMS;
-    firstrun = false;
-    switch (param) {
-
-      case 1: // display the lower scan limit
-
-        itoa(scan_start_freq, b, DEC);
-        strcpy(c, "lower ");
-        strcat(c, b);
-        strcat(c, " kHz");
-        break;
-
-      case 2: // display the upper scan limit
-
-        itoa(scan_stop_freq, b, DEC);
-        strcpy(c, "upper ");
-        strcat(c, b);
-        strcat(c, " kHz");
-        break;
-
-      case 3: // display the scan step size
-
-        itoa(scan_step_freq, b, DEC);
-        strcpy(c, "step ");
-        strcat(c, b);
-        strcat(c, " Hz");
-        break;
-
-      case 4: // display the scan step delay
-
-        itoa(scan_step_delay, b, DEC);
-        strcpy(c, "delay ");
-        strcat(c, b);
-        strcat(c, " ms");
-        break;
-    }
-    printLine2(c);
-  }
 }
 
 
-// function to read the position of the tuning knob at high precision (Allard, PE1NWL)
-int knob_position() {
-  long knob = 0;
-  // the knob value normally ranges from 0 through 1023 (10 bit ADC)
-  // in order to increase the precision by a factor 10, we need 10^2 = 100x oversampling
+    // function to read the position of the tuning knob at high precision (Allard, PE1NWL)
+    int knob_position() {
+      long knob = 0;
+      // the knob value normally ranges from 0 through 1023 (10 bit ADC)
+      // in order to increase the precision by a factor 10, we need 10^2 = 100x oversampling
 
-  for (byte i = 0; i < 100; i++) {
-    knob = knob + analogRead(ANALOG_TUNING) - 10; // take 100 readings from the ADC
-  }
-  knob = (knob + 5L) / 10L; // take the average of the 100 readings and multiply the result by 10
-  //now the knob value ranges from -100 through 10130 (10x more precision)
-  return knob;
+      for (byte i = 0; i < 100; i++) {
+        knob = knob + analogRead(ANALOG_TUNING) - 10; // take 100 readings from the ADC
+      }
+      knob = (knob + 5L) / 10L; // take the average of the 100 readings and multiply the result by 10
+      //now the knob value ranges from -100 through 10130 (10x more precision)
+      return knob;
 }
 
 /* Many BITX40's suffer from a strong birdie at 7199 kHz (LSB).
