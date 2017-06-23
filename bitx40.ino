@@ -342,12 +342,12 @@ void updateDisplay() {
 
 // function to generate a bleep sound (FB menu)
 void bleep(int pitch, int duration, byte repeat) {
-  for (byte i = 0; i < repeat; i++) {
-    tone(CW_TONE, pitch);
-    delay(duration);
-    noTone(CW_TONE);
-    delay(duration);
-  }
+    for (byte i = 0; i < repeat; i++) {
+        tone(CW_TONE, pitch);
+        delay(duration);
+        noTone(CW_TONE);
+        delay(duration);
+    }
 }
 
 bool calbutton = false;
@@ -372,77 +372,70 @@ bool calbutton = false;
 
 int shift, current_setting;
 void calibrate() {
-  if (RUNmode != RUN_CALIBRATE) {
+    if (RUNmode != RUN_CALIBRATE) {
 
-    if (mode == USB)
-      current_setting = USB_OFFSET;
-    else
-      current_setting = cal;
+        if (mode == USB)
+            current_setting = USB_OFFSET;
+        else
+            current_setting = cal;
 
-    shift = current_setting - (analogRead(ANALOG_TUNING) * 10) + 5000;
-  }
+        shift = current_setting - (analogRead(ANALOG_TUNING) * 10) + 5000;
+    }
 
-  // The tuning knob gives readings from 0 to 1000
-  // Each step is taken as 10 Hz and the mid setting of the knob is taken as zero
-
-  if (mode == USB) {
-    USB_OFFSET = constrain((analogRead(ANALOG_TUNING) * 10) - 5000 + shift, -5000, 5000);
-
-    if (analogRead(ANALOG_TUNING) < 5 && USB_OFFSET > -5000)
-      shift = shift - 10;
-    else if (analogRead(ANALOG_TUNING) > 1020 && USB_OFFSET < 5000)
-      shift = shift + 10;
-  }
-  else {
-    cal = constrain((analogRead(ANALOG_TUNING) * 10) - 5000 + shift, -5000, 5000);
-
-    if (analogRead(ANALOG_TUNING) < 5 && cal > -5000)
-      shift = shift - 10;
-    else if (analogRead(ANALOG_TUNING) > 1020 && cal < 5000)
-      shift = shift + 10;
-  }
-
-  // if Fbutton is pressed again (or when the CAL button is released), we save the setting
-  if (!digitalRead(FBUTTON) || (calbutton && digitalRead(CAL_BUTTON))) {
-    RUNmode = RUN_NORMAL;
-    calbutton = false;
-
-    if (mode == USB)
-        printLine2((char *)"USB Calibrated!");
-    else
-        printLine2((char *)"LSB Calibrated!");
-
-    // update the eeprom
-    saveEEPROM();
-
-    delay(700);
-    bleep(600, 50, 2);
-    printLine2((char *)"--- SETTINGS ---");
-    shiftBase(); //align the current knob position with the current frequency
-  }
-
-  else {
-    // while offset adjustment is in progress, keep tweaking the
-    // frequency as read out by the knob, display the change in the second line
-    RUNmode = RUN_CALIBRATE;
+    // The tuning knob gives readings from 0 to 1000
+    // Each step is taken as 10 Hz and the mid setting of the knob is taken as zero
 
     if (mode == USB) {
-      //~ si5351.set_freq((bfo_freq + frequency + cal / 5 * 19 - USB_OFFSET) * 100LL, SI5351_CLK2);
-      si5351.setFreq(2, bfo_freq + frequency + cal / 5 * 19 - USB_OFFSET);
-      itoa(USB_OFFSET, b, DEC);
+        USB_OFFSET = constrain((analogRead(ANALOG_TUNING) * 10) - 5000 + shift, -5000, 5000);
+
+        if (analogRead(ANALOG_TUNING) < 5 && USB_OFFSET > -5000)
+            shift = shift - 10;
+        else if (analogRead(ANALOG_TUNING) > 1020 && USB_OFFSET < 5000)
+                shift = shift + 10;
+    } else {
+        cal = constrain((analogRead(ANALOG_TUNING) * 10) - 5000 + shift, -5000, 5000);
+
+        if (analogRead(ANALOG_TUNING) < 5 && cal > -5000)
+            shift = shift - 10;
+        else if (analogRead(ANALOG_TUNING) > 1020 && cal < 5000)
+            shift = shift + 10;
     }
 
-    else {
-      //~ si5351.set_freq((bfo_freq - frequency + cal) * 100LL, SI5351_CLK2);
-      si5351.setFreq(2, bfo_freq - frequency + cal);
-      itoa(cal, b, DEC);
-    }
+    // if Fbutton is pressed again (or when the CAL button is released), we save the setting
+    if (!digitalRead(FBUTTON) || (calbutton && digitalRead(CAL_BUTTON))) {
+        RUNmode = RUN_NORMAL;
+        calbutton = false;
 
-    strcpy(c, "offset ");
-    strcat(c, b);
-    strcat(c, " Hz");
-    printLine2(c);
-  }
+        if (mode == USB)
+            printLine2((char *)"USB Calibrated!");
+        else
+            printLine2((char *)"LSB Calibrated!");
+
+        // update the eeprom
+        saveEEPROM();
+
+        delay(700);
+        bleep(600, 50, 2);
+        printLine2((char *)"--- SETTINGS ---");
+        shiftBase(); //align the current knob position with the current frequency
+    } else {
+        // while offset adjustment is in progress, keep tweaking the
+        // frequency as read out by the knob, display the change in the second line
+        RUNmode = RUN_CALIBRATE;
+
+        if (mode == USB) {
+            si5351.setFreq(2, bfo_freq + frequency + cal / 5 * 19 - USB_OFFSET);
+            itoa(USB_OFFSET, b, DEC);
+        } else {
+            si5351.setFreq(2, bfo_freq - frequency + cal);
+            itoa(cal, b, DEC);
+        }
+
+        strcpy(c, "offset ");
+        strcat(c, b);
+        strcat(c, " Hz");
+        printLine2(c);
+    }
 }
 
 
