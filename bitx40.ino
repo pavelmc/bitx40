@@ -265,31 +265,42 @@ byte smcount = 0;       // how many samples lies on smeterpool
 
 /**
    Display Routines
-   These two display routines print a line of characters to the upper and lower lines of the 16x2 display
+   These two display routines print a line of characters to the upper or lower lines of the 16x2 display
 */
 
 void printLine1(char *c) {
-  if (strcmp(c, printBuff1)) { // only refresh the display when there was a change
-    lcd.setCursor(0, 0); // place the cursor at the beginning of the top line
-    lcd.print(c); // write text
-    strcpy(printBuff1, c);
-
-    for (byte i = strlen(c); i < 16; i++) { // add white spaces until the end of the 16 characters line is reached
-      lcd.print(' ');
+    // only refresh the display when there was a change
+    if (strcmp(c, printBuff1)) {
+        // start of line 1
+        lcd.setCursor(0, 0);
+        // write text
+        lcd.print(c);
+        // update copy
+        strcpy(printBuff1, c);
+        // fill with spaces
+        fillSpaces(c);
     }
-  }
 }
 
 void printLine2(char *c) {
-  if (strcmp(c, printBuff2)) { // only refresh the display when there was a change
-    lcd.setCursor(0, 1); // place the cursor at the beginning of the bottom line
-    lcd.print(c);
-    strcpy(printBuff2, c);
-
-    for (byte i = strlen(c); i < 16; i++) { // add white spaces until the end of the 16 characters line is reached
-      lcd.print(' ');
+    // only refresh the display when there was a change
+    if (strcmp(c, printBuff2)) {
+        // start of line 2
+        lcd.setCursor(0, 1);
+        // write text
+        lcd.print(c);
+        // update copy
+        strcpy(printBuff2, c);
+        // fill with spaces
+        fillSpaces(c);
     }
-  }
+}
+
+
+// helper function to fill the remaining "space" with spaces...
+void fillSpaces(char *c) {
+    // complete the lcd line with spaces up to 15
+    for (byte i = strlen(c); i < 16; i++) lcd.print(' ');
 }
 
 /**
