@@ -96,7 +96,7 @@ char c[17], b[10], printBuff1[17], printBuff2[17];
  *
  */
 
-#define KILLED_PINS true
+//#define KILLED_PINS true
 
 #ifdef KILLED_PINS
     #define CAL_BUTTON (4)
