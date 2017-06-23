@@ -804,49 +804,56 @@ void checkButton() {
 }
 
 void swapVFOs() {
-  if (vfoActive) { // if VFO B is active
-    vfoActive = false; // switch to VFO A
-    vfoB = frequency;
-    frequency = vfoA;
-    mode = mode_A;
-  }
+    if (vfoActive) { // if VFO B is active
+        vfoActive = false; // switch to VFO A
+        vfoB = frequency;
+        frequency = vfoA;
+        mode = mode_A;
+    }
+    //if VFO A is active
+    else {
+        vfoActive = true; // switch to VFO B
+        vfoA = frequency;
+        frequency = vfoB;
+        mode = mode_B;
+    }
 
-  else { //if VFO A is active
-    vfoActive = true; // switch to VFO B
-    vfoA = frequency;
-    frequency = vfoB;
-    mode = mode_B;
-  }
+    if (mode & 1) // if we are in UPPER side band mode
+        SetSideBand(USBdrive);
+    else // if we are in LOWER side band mode
+        SetSideBand(LSBdrive);
 
-  if (mode & 1) // if we are in UPPER side band mode
-    SetSideBand(USBdrive);
-  else // if we are in LOWER side band mode
-    SetSideBand(LSBdrive);
+    if (!inTx && mode > 1)
+        RXshift = CW_OFFSET;
+    else
+        RXshift = 0;
 
-  if (!inTx && mode > 1)
-    RXshift = CW_OFFSET;
-  else
-    RXshift = 0;
-
-
-  shiftBase(); //align the current knob position with the current frequency
+    //align the current knob position with the current frequency
+    shiftBase();
 }
 
 void toggleRIT() {
-  if (!PTTsense_installed) {
-    printLine2((char *)"Not available!");
-    return;
-  }
-  ritOn = !ritOn; // toggle RIT
-  if (!ritOn)
-    RIT = RIT_old = 0;
-  shiftBase(); //align the current knob position with the current frequency
-  firstrun = true;
-  if (splitOn) {
-    splitOn = false;
-    saveEEPROM();
-  }
-  updateDisplay();
+    if (!PTTsense_installed) {
+        printLine2((char *)"Not available!");
+        return;
+    }
+
+    // toggle RIT
+    ritOn = !ritOn;
+    if (!ritOn) RIT = RIT_old = 0;
+
+    //align the current knob position with the current frequency
+    shiftBase();
+
+    // check first run cnditions
+    firstrun = true;
+    if (splitOn) {
+        splitOn = false;
+        saveEEPROM();
+    }
+
+    // update display either way
+    updateDisplay();
 }
 
 
