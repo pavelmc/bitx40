@@ -25,65 +25,65 @@
 Si5351mcu si5351;
 
 /**
-   The Raduino board is the size of a standard 16x2 LCD panel. It has three connectors:
+    The Raduino board is the size of a standard 16x2 LCD panel. It has three connectors:
 
-   First, is an 8 pin connector that provides +5v, GND and six analog input pins that can also be
-   configured to be used as digital input or output pins. These are referred to as A0,A1,A2,
-   A3,A6 and A7 pins. The A4 and A5 pins are missing from this connector as they are used to
-   talk to the Si5351 over I2C protocol.
+    First, is an 8 pin connector that provides +5v, GND and six analog input pins that can also be
+    configured to be used as digital input or output pins. These are referred to as A0,A1,A2,
+    A3,A6 and A7 pins. The A4 and A5 pins are missing from this connector as they are used to
+    talk to the Si5351 over I2C protocol.
 
     A0     A1   A2   A3    GND    +5V   A6   A7
-   BLACK BROWN RED ORANGE YELLOW GREEN BLUE VIOLET
+    BLACK BROWN RED ORANGE YELLOW GREEN BLUE VIOLET
 
-   Second is a 16 pin LCD connector. This connector is meant specifically for the standard 16x2
-   LCD display in 4 bit mode. The 4 bit mode requires 4 data lines and two control lines to work:
-   Lines used are : RESET, ENABLE, D4, D5, D6, D7
-   We include the library and declare the configuration of the LCD panel too
+    Second is a 16 pin LCD connector. This connector is meant specifically for the standard 16x2
+    LCD display in 4 bit mode. The 4 bit mode requires 4 data lines and two control lines to work:
+    Lines used are : RESET, ENABLE, D4, D5, D6, D7
+    We include the library and declare the configuration of the LCD panel too
 */
 
 #include <LiquidCrystal.h>
 LiquidCrystal lcd(8, 9, 10, 11, 12, 13);
 
 /**
-   The Arduino, unlike C/C++ on a regular computer with gigabytes of RAM, has very little memory.
-   We have to be very careful with variables that are declared inside the functions as they are
-   created in a memory region called the stack. The stack has just a few bytes of space on the Arduino
-   if you declare large strings inside functions, they can easily exceed the capacity of the stack
-   and mess up your programs.
-   We circumvent this by declaring a few global buffers as  kitchen counters where we can
-   slice and dice our strings. These strings are mostly used to control the display or handle
-   the input and output from the USB port. We must keep a count of the bytes used while reading
-   the serial port as we can easily run out of buffer space. This is done in the serial_in_count variable.
+    The Arduino, unlike C/C++ on a regular computer with gigabytes of RAM, has very little memory.
+    We have to be very careful with variables that are declared inside the functions as they are
+    created in a memory region called the stack. The stack has just a few bytes of space on the Arduino
+    if you declare large strings inside functions, they can easily exceed the capacity of the stack
+    and mess up your programs.
+    We circumvent this by declaring a few global buffers as  kitchen counters where we can
+    slice and dice our strings. These strings are mostly used to control the display or handle
+    the input and output from the USB port. We must keep a count of the bytes used while reading
+    the serial port as we can easily run out of buffer space. This is done in the serial_in_count variable.
 */
 
 char c[17], b[10], printBuff1[17], printBuff2[17];
 
 /**
-   We need to carefully pick assignment of pin for various purposes.
-   There are two sets of completely programmable pins on the Raduino.
-   First, on the top of the board, in line with the LCD connector is an 8-pin connector
-   that is largely meant for analog inputs and front-panel control. It has a regulated 5v output,
-   ground and six pins. Each of these six pins can be individually programmed
-   either as an analog input, a digital input or a digital output.
-   The pins are assigned as follows:
+    We need to carefully pick assignment of pin for various purposes.
+    There are two sets of completely programmable pins on the Raduino.
+    First, on the top of the board, in line with the LCD connector is an 8-pin connector
+    that is largely meant for analog inputs and front-panel control. It has a regulated 5v output,
+    ground and six pins. Each of these six pins can be individually programmed
+    either as an analog input, a digital input or a digital output.
+    The pins are assigned as follows:
           A0,   A1,  A2,  A3,   GND,   +5V,  A6,  A7
        pin 8     7    6    5     4       3    2    1 (connector P1)
         BLACK BROWN RED ORANGE YELLW  GREEN  BLUE VIOLET
         (while holding the board up so that back of the board faces you)
 
-   Though, this can be assigned anyway, for this application of the Arduino, we will make the following
-   assignment:
+    Though, this can be assigned anyway, for this application of the Arduino, we will make the following
+    assignment:
 
-   A0 (digital input) for sensing the PTT. Connect to the output of U3 (LM7805) of the BITX40.
+    A0 (digital input) for sensing the PTT. Connect to the output of U3 (LM7805) of the BITX40.
       This way the A0 input will see 0V (LOW) when PTT is not pressed, +5V (HIGH) when PTT is pressed.
-   A1 (digital input) is to connect to a straight key. Open (HIGH) during key up, switch to ground (LOW) during key down.
-   A2 (digital input) can be used for calibration by grounding this line (not required when you have the Function Button at A3).
-   A3 (digital input) is connected to a push button that can momentarily ground this line. This Function Button will be used to switch between different modes, etc.
-   A4 (already in use for talking to the SI5351)
-   A5 (already in use for talking to the SI5351)
-   A6 (analog input) is not currently used
-   A7 (analog input) is connected to a center pin of good quality 100K or 10K linear potentiometer with the two other ends connected to
-       ground and +5v lines available on the connector. This implments the tuning mechanism.
+    A1 (digital input) is to connect to a straight key. Open (HIGH) during key up, switch to ground (LOW) during key down.
+    A2 (digital input) can be used for calibration by grounding this line (not required when you have the Function Button at A3).
+    A3 (digital input) is connected to a push button that can momentarily ground this line. This Function Button will be used to switch between different modes, etc.
+    A4 (already in use for talking to the SI5351)
+    A5 (already in use for talking to the SI5351)
+    A6 (analog input) is not currently used
+    A7 (analog input) is connected to a center pin of good quality 100K or 10K linear potentiometer with the two other ends connected to ground and +5v lines available on the connector.
+    This implements the tuning mechanism.
 */
 
 #define PTT_SENSE (A0)
@@ -133,11 +133,11 @@ bool PTTsense_installed; //whether or not the PTT sense line is installed (detec
 int CW_TIMEOUT; // in milliseconds, this is the parameter that determines how long the tx will hold between cw key downs
 
 /**
-   The Raduino supports two VFOs : A and B and receiver incremental tuning (RIT).
-   we define a variables to hold the frequency of the two VFOs, RIT, SPLIT
-   the rit offset as well as status of the RIT
+    The Raduino supports two VFOs : A and B and receiver incremental tuning (RIT).
+    we define a variables to hold the frequency of the two VFOs, RIT, SPLIT
+    the rit offset as well as status of the RIT
 
-   To use this facility, wire up push button on A3 line of the control connector (Function Button)
+    To use this facility, wire up push button on A3 line of the control connector (Function Button)
 */
 
 unsigned long vfoA, vfoB; // the frequencies the VFOs
@@ -152,17 +152,17 @@ byte mode_A, mode_B; // the mode of each VFO
 bool firstrun = true;
 
 /**
-   We need to apply some frequency offset to calibrate the dial frequency. Calibration is done in LSB mode.
+    We need to apply some frequency offset to calibrate the dial frequency. Calibration is done in LSB mode.
 */
 int cal; // frequency offset in Hz
 
 /**
-   In USB mode we need to apply some additional frequency offset, so that zerobeat in USB is same as in LSB
+    In USB mode we need to apply some additional frequency offset, so that zerobeat in USB is same as in LSB
 */
 int USB_OFFSET; // USB offset in Hz
 
 /**
-   We can set the VFO drive to a certain level (2,4,6,8 mA)
+    We can set the VFO drive to a certain level (2,4,6,8 mA)
 */
 byte LSBdrive;
 byte USBdrive;
@@ -176,7 +176,7 @@ int scan_step_delay; // step delay (ms)
 
 
 /**
-  Raduino has 4 modes of operation:
+    Raduino has 4 modes of operation:
 */
 
 #define LSB (0)
@@ -185,7 +185,7 @@ int scan_step_delay; // step delay (ms)
 #define CWU (3)
 
 /**
-   Raduino needs to keep track of current state of the transceiver. These are a few variables that do it
+    Raduino needs to keep track of current state of the transceiver. These are a few variables that do it
 */
 byte mode = LSB; // mode of the currently active VFO
 char *model[] = {" LSB", " USB", " CWL", " CWU"};
@@ -229,7 +229,7 @@ int RXshift = 0; // the actual frequency shift that is applied during RX dependi
 unsigned long frequency; // the 'dial' frequency as shown on the display
 
 /**
-   The raduino has multiple RUN-modes:
+    The raduino has multiple RUN-modes:
 */
 #define RUN_NORMAL (0)  // normal operation
 #define RUN_CALIBRATE (1) // calibrate VFO frequency in LSB mode
@@ -264,8 +264,8 @@ byte smcount = 0;       // how many samples lies on smeterpool
 
 
 /**
-   Display Routines
-   These two display routines print a line of characters to the upper or lower lines of the 16x2 display
+    Display Routines
+    These two display routines print a line of characters to the upper or lower lines of the 16x2 display
 */
 
 void printLine1(char *c) {
@@ -304,8 +304,8 @@ void fillSpaces(char *c) {
 }
 
 /**
-   Building upon the previous  two functions,
-   update Display paints the first line as per current state of the radio
+    Building upon the previous  two functions,
+    update Display paints the first line as per current state of the radio
 */
 
 void updateDisplay() {
@@ -353,21 +353,21 @@ void bleep(int pitch, int duration, byte repeat) {
 bool calbutton = false;
 
 /**
-   To use calibration sets the accurate readout of the tuned frequency
-   To calibrate, follow these steps:
-   1. Tune in a LSB signal that is at a known frequency.
-   2. Now, set the display to show the correct frequency,
+    To use calibration sets the accurate readout of the tuned frequency
+    To calibrate, follow these steps:
+    1. Tune in a LSB signal that is at a known frequency.
+    2. Now, set the display to show the correct frequency,
       the signal will no longer be tuned up properly
-   3. Use the "LSB calibrate" option in the "Settings" menu (or Press the CAL_BUTTON line to the ground (pin A2 - red wire))
-   4. tune in the signal until it sounds proper.
-   5. Press the FButton (or Release CAL_BUTTON)
-   In step 4, when we say 'sounds proper' then, for a CW signal/carrier it means zero-beat
-   and for LSB it is the most natural sounding setting.
+    3. Use the "LSB calibrate" option in the "Settings" menu (or Press the CAL_BUTTON line to the ground (pin A2 - red wire))
+    4. tune in the signal until it sounds proper.
+    5. Press the FButton (or Release CAL_BUTTON)
+    In step 4, when we say 'sounds proper' then, for a CW signal/carrier it means zero-beat
+    and for LSB it is the most natural sounding setting.
 
-   Calibration is an offset value that is added to the VFO frequency.
-   We store it in the EEPROM and read it in setup() when the Radiuno is powered up.
+    Calibration is an offset value that is added to the VFO frequency.
+    We store it in the EEPROM and read it in setup() when the Radiuno is powered up.
 
-   Then select the "USB calibrate" option in the "Settings" menu and repeat the same steps for USB mode.
+    Then select the "USB calibrate" option in the "Settings" menu and repeat the same steps for USB mode.
 */
 
 int shift, current_setting;
@@ -440,28 +440,28 @@ void calibrate() {
 
 
 /**
-   The setFrequency is a little tricky routine, it works differently for USB and LSB
-   The BITX BFO is permanently set to lower sideband, (that is, the crystal frequency
-   is on the higher side slope of the crystal filter).
+    The setFrequency is a little tricky routine, it works differently for USB and LSB
+    The BITX BFO is permanently set to lower sideband, (that is, the crystal frequency
+    is on the higher side slope of the crystal filter).
 
-   LSB: The VFO frequency is subtracted from the BFO. Suppose the BFO is set to exactly 12 MHz
-   and the VFO is at 5 MHz. The output will be at 12.000 - 5.000  = 7.000 MHz
-   USB: The BFO is subtracted from the VFO. Makes the LSB signal of the BITX come out as USB!!
-   Here is how it will work:
-   Consider that you want to transmit on 14.000 MHz and you have the BFO at 12.000 MHz. We set
-   the VFO to 26.000 MHz. Hence, 26.000 - 12.000 = 14.000 MHz. Now, consider you are whistling a tone
-   of 1 KHz. As the BITX BFO is set to produce LSB, the output from the crystal filter will be 11.999 MHz.
-   With the VFO still at 26.000, the 14 Mhz output will now be 26.000 - 11.999 = 14.001, hence, as the
-   frequencies of your voice go down at the IF, the RF frequencies will go up!
+    LSB: The VFO frequency is subtracted from the BFO. Suppose the BFO is set to exactly 12 MHz
+    and the VFO is at 5 MHz. The output will be at 12.000 - 5.000  = 7.000 MHz
+    USB: The BFO is subtracted from the VFO. Makes the LSB signal of the BITX come out as USB!!
+    Here is how it will work:
+    Consider that you want to transmit on 14.000 MHz and you have the BFO at 12.000 MHz. We set
+    the VFO to 26.000 MHz. Hence, 26.000 - 12.000 = 14.000 MHz. Now, consider you are whistling a tone
+    of 1 KHz. As the BITX BFO is set to produce LSB, the output from the crystal filter will be 11.999 MHz.
+    With the VFO still at 26.000, the 14 Mhz output will now be 26.000 - 11.999 = 14.001, hence, as the
+    frequencies of your voice go down at the IF, the RF frequencies will go up!
 
-   Thus, setting the VFO on either side of the BFO will flip between the USB and LSB signals.
+    Thus, setting the VFO on either side of the BFO will flip between the USB and LSB signals.
 
-   In addition we add some offset to USB mode so that the dial frequency is correct in both LSB and USB mode.
-   The amount of offset can be set in the SETTING menu as part of the calibration procedure.
+    In addition we add some offset to USB mode so that the dial frequency is correct in both LSB and USB mode.
+    The amount of offset can be set in the SETTING menu as part of the calibration procedure.
 
-   Furthermore we add/substract the sidetone frequency only when we receive CW, to assure zero beat
-   between the transmitting and receiving station (RXshift)
-   The desired sidetone frequency can be set in the SETTINGS menu.
+    Furthermore we add/substract the sidetone frequency only when we receive CW, to assure zero beat
+    between the transmitting and receiving station (RXshift)
+    The desired sidetone frequency can be set in the SETTINGS menu.
 */
 
 void setFrequency(unsigned long f) {
