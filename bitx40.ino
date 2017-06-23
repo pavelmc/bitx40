@@ -309,34 +309,35 @@ void fillSpaces(char *c) {
 */
 
 void updateDisplay() {
-  // tks Jack Purdum W8TEE
-  // replaced fsprint commmands by str commands for code size reduction
+    // tks Jack Purdum W8TEE
+    // replaced fsprint commmands by str commands for code size reduction
 
-  memset(c, 0, sizeof(c));
-  memset(b, 0, sizeof(b));
+    memset(c, 0, sizeof(c));
+    memset(b, 0, sizeof(b));
 
-  ltoa(frequency, b, DEC);
+    ltoa(frequency, b, DEC);
 
-  if (!vfoActive) // VFO A is active
-    strcpy(c, "A ");
-  else
-    strcpy(c, "B ");
+    if (!vfoActive) // VFO A is active
+        strcpy(c, "A ");
+    else
+        strcpy(c, "B ");
 
-  c[2] = b[0];
-  strcat(c, ".");
-  strncat(c, &b[1], 3);
-  strcat(c, ".");
-  strncat(c, &b[4], 1);
+    // put the frecuency in the format "7.110.2"
+    c[2] = b[0];
+    strcat(c, ".");
+    strncat(c, &b[1], 3);
+    strcat(c, ".");
+    strncat(c, &b[4], 1);
 
     // simpler & efficient
     strcat(c, model[mode]);
 
-  if (inTx)
-    strcat(c, " TX");
-  else if (splitOn)
-    strcat(c, " SP");
+    if (inTx)
+        strcat(c, " TX");
+    else if (splitOn)
+        strcat(c, " SP");
 
-  printLine1(c);
+    printLine1(c);
 }
 
 // function to generate a bleep sound (FB menu)
