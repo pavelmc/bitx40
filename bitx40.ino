@@ -621,223 +621,186 @@ void checkCW() {
 byte param;
 
 /**
-   The Function Button is used for several functions
-   NORMAL menu (normal operation):
-   1 short press: swap VFO A/B
-   2 short presses: toggle RIT on/off
-   3 short presses: toggle SPLIT on/off
-   4 short presses: toggle LSB/USB
-   5 short presses: start freq scan mode
-   5 short presses: start A/B monitor mode
-   long press (>1 Sec): VFO A=B
-   VERY long press (>3 sec): go to SETTINGS menu
+    The Function Button is used for several functions
+    NORMAL menu (normal operation):
+    1 short press: swap VFO A/B
+    2 short presses: toggle RIT on/off
+    3 short presses: toggle SPLIT on/off
+    4 short presses: toggle LSB/USB
+    5 short presses: start freq scan mode
+    5 short presses: start A/B monitor mode
+    long press (>1 Sec): VFO A=B
+    VERY long press (>3 sec): go to SETTINGS menu
 
-   SETTINGS menu:
-   1 short press: LSB calibration
-   2 short presses: USB calibration
-   3 short presses: Set VFO drive level in LSB mode
-   4 short presses: Set VFO drive level in USB mode
-   5 short presses: Set tuning range
-   6 short presses: Set the 2 CW parameters (sidetone pitch, CW timeout)
-   7 short presses: Set the 4 scan parameters (lower limit, upper limit, step size, step delay)
-   long press: exit SETTINGS menu - go back to NORMAL menu
+    SETTINGS menu:
+    1 short press: LSB calibration
+    2 short presses: USB calibration
+    3 short presses: Set VFO drive level in LSB mode
+    4 short presses: Set VFO drive level in USB mode
+    5 short presses: Set tuning range
+    6 short presses: Set the 2 CW parameters (sidetone pitch, CW timeout)
+    7 short presses: Set the 4 scan parameters (lower limit, upper limit, step size, step delay)
+    long press: exit SETTINGS menu - go back to NORMAL menu
 */
 char clicks;
+char *clickLabels[] = {"Swap VFOs", "RIT ON", "SPLIT ON/OFF", "Switch mode", "Start freq scan", "Monitor VFO A/B", "LSB calibration", "USB calibration", "VFO drive - LSB", "VFO drive - USB", "Set tuning range", "Set CW params", "Set scan params"};
 
 void checkButton() {
+    static byte action;
+    static long t1, t2;
+    static bool pressed = false;
 
-  static byte action;
-  static long t1, t2;
-  static bool pressed = false;
+    if (digitalRead(FBUTTON)) {
+        t2 = millis() - t1; //time elapsed since last button press
+        if (pressed)
+            if (clicks < 10 && t2 > 600 && t2 < 3000) { //detect long press to reset the VFO's
+            bleep(600, 50, 1);
+            resetVFOs();
+            delay(700);
+            clicks = 0;
+            }
 
-  if (digitalRead(FBUTTON)) {
-    t2 = millis() - t1; //time elapsed since last button press
-    if (pressed)
-      if (clicks < 10 && t2 > 600 && t2 < 3000) { //detect long press to reset the VFO's
-        bleep(600, 50, 1);
-        resetVFOs();
-        delay(700);
-        clicks = 0;
-      }
-
-    if (t2 > 500) { // max time between button clicks (ms)
-      action = clicks;
-      if (clicks >= 10)
-        clicks = 10;
-      else
-        clicks = 0;
-    }
-    pressed = false;
-  }
-  else {
-    delay(10);
-    if (!digitalRead(FBUTTON)) {
-      // button was really pressed, not just some noise
-      if (ritOn) {
-        toggleRIT();
-        bleep(600, 50, 1);
-        delay(700);
-        return;
-      }
-      if (!pressed) {
-        pressed = true;
-        t1 = millis();
-        bleep(1200, 50, 1);
-        action = 0;
-        clicks++;
-        if (clicks > 17)
-          clicks = 11;
-        if (clicks > 6 && clicks < 10)
-          clicks = 1;
-        switch (clicks) {
-          //Normal menu options
-          case 1:
-            printLine2((char *)"Swap VFOs");
-            break;
-          case 2:
-            printLine2((char *)"RIT ON");
-            break;
-          case 3:
-            printLine2((char *)"SPLIT ON/OFF");
-            break;
-          case 4:
-            printLine2((char *)"Switch mode");
-            break;
-          case 5:
-            printLine2((char *)"Start freq scan");
-            break;
-          case 6:
-            printLine2((char *)"Monitor VFO A/B");
-            break;
-
-          //SETTINGS menu options
-          case 11:
-            printLine2((char *)"LSB calibration");
-            break;
-          case 12:
-            printLine2((char *)"USB calibration");
-            break;
-          case 13:
-            printLine2((char *)"VFO drive - LSB");
-            break;
-          case 14:
-            printLine2((char *)"VFO drive - USB");
-            break;
-          case 15:
-            printLine2((char *)"Set tuning range");
-            break;
-          case 16:
-            printLine2((char *)"Set CW params");
-            break;
-          case 17:
-            printLine2((char *)"Set scan params");
-            break;
+        if (t2 > 500) { // max time between button clicks (ms)
+            action = clicks;
+            if (clicks >= 10)
+                clicks = 10;
+            else
+                clicks = 0;
         }
-      }
-      else if ((millis() - t1) > 600 && (millis() - t1) < 800 && clicks < 10) // long press: reset the VFOs
-        printLine2((char *)"Reset VFOs");
-
-      if ((millis() - t1) > 3000 && clicks < 10) { // VERY long press: go to the SETTINGS menu
-        bleep(1200, 150, 3);
-        printLine2((char *)"--- SETTINGS ---");
-        clicks = 10;
-        if (ritOn) //disable RIT if is was on
-          toggleRIT();
-      }
-
-      else if ((millis() - t1) > 1500 && clicks > 10) { // long press: return to the NORMAL menu
-        bleep(1200, 150, 3);
-        clicks = -1;
         pressed = false;
-        printLine2((char *)" --- NORMAL ---");
-        delay(700);
-      }
+
+    } else {
+        delay(10);
+            if (!digitalRead(FBUTTON)) {
+            // button was really pressed, not just some noise
+            if (ritOn) {
+                toggleRIT();
+                bleep(600, 50, 1);
+                delay(700);
+                return;
+            }
+
+            if (!pressed) {
+                pressed = true;
+                t1 = millis();
+                bleep(1200, 50, 1);
+                action = 0;
+                clicks++;
+
+                if (clicks > 17) clicks = 11;
+
+                if (clicks > 6 && clicks < 10) clicks = 1;
+
+                // simple an elegant way of print the cecons line labels
+                printLine2(clickLabels[1 + clicks]);
+
+            }
+            // long press: reset the VFOs
+            else if ((millis() - t1) > 600 && (millis() - t1) < 800 && clicks < 10)
+                printLine2((char *)"Reset VFOs");
+
+            // VERY long press: go to the SETTINGS menu
+            if ((millis() - t1) > 3000 && clicks < 10) {
+                bleep(1200, 150, 3);
+                printLine2((char *)"--- SETTINGS ---");
+                clicks = 10;
+                //disable RIT if is was on
+                if (ritOn) toggleRIT();
+            }
+            // long press: return to the NORMAL menu
+            else if ((millis() - t1) > 1500 && clicks > 10) {
+                bleep(1200, 150, 3);
+                clicks = -1;
+                pressed = false;
+                printLine2((char *)" --- NORMAL ---");
+                delay(700);
+            }
+        }
     }
-  }
-  if (action != 0 && action != 10) {
-    bleep(600, 50, 1);
-  }
-  switch (action) {
-    // NORMAL menu
 
-    case 1: // swap the VFOs
-      swapVFOs();
-      saveEEPROM();
-      delay(700);
-      break;
+    if (action != 0 && action != 10) bleep(600, 50, 1);
 
-    case 2: // toggle the RIT on/off
-      toggleRIT();
-      delay(700);
-      break;
+    switch (action) {
+        // NORMAL menu
 
-    case 3: // toggle SPLIT on/off
-      toggleSPLIT();
-      delay(700);
-      break;
+        case 1: // swap the VFOs
+            swapVFOs();
+            saveEEPROM();
+            delay(700);
+            break;
 
-    case 4: // toggle the mode LSB/USB
-      toggleMode();
-      delay(700);
-      break;
+        case 2: // toggle the RIT on/off
+            toggleRIT();
+            delay(700);
+            break;
 
-    case 5: // start scan mode
-      RUNmode = RUN_SCAN;
-      TimeOut = millis() + scan_step_delay;
-      frequency = scan_start_freq * 1000L;
-      printLine2((char *)"freq scanning");
-      break;
+        case 3: // toggle SPLIT on/off
+            toggleSPLIT();
+            delay(700);
+            break;
 
-    case 6: // Monitor mode
-      RUNmode = RUN_MONITOR;
-      TimeOut = millis() + scan_step_delay;
-      printLine2((char *)"A/B monitoring");
-      break;
+        case 4: // toggle the mode LSB/USB
+            toggleMode();
+            delay(700);
+            break;
 
-    // SETTINGS MENU
+        case 5: // start scan mode
+            RUNmode = RUN_SCAN;
+            TimeOut = millis() + scan_step_delay;
+            frequency = scan_start_freq * 1000L;
+            printLine2((char *)"freq scanning");
+            break;
 
-    case 11: // calibrate the dial frequency in LSB
-      RXshift = 0;
-      mode = LSB;
-      setFrequency(frequency);
-      SetSideBand(LSBdrive);
-      calibrate();
-      break;
+        case 6: // Monitor mode
+            RUNmode = RUN_MONITOR;
+            TimeOut = millis() + scan_step_delay;
+            printLine2((char *)"A/B monitoring");
+            break;
 
-    case 12: // calibrate the dial frequency in USB
-      RXshift = 0;
-      mode = USB;
-      setFrequency(frequency);
-      SetSideBand(USBdrive);
-      calibrate();
-      break;
+        // SETTINGS MENU
 
-    case 13: // set the VFO drive level in LSB
-      mode = LSB;
-      SetSideBand(LSBdrive);
-      VFOdrive();
-      break;
+        case 11: // calibrate the dial frequency in LSB
+            RXshift = 0;
+            mode = LSB;
+            setFrequency(frequency);
+            SetSideBand(LSBdrive);
+            calibrate();
+            break;
 
-    case 14: // set the VFO drive level in USB
-      mode = USB;
-      SetSideBand(USBdrive);
-      VFOdrive();
-      break;
+        case 12: // calibrate the dial frequency in USB
+            RXshift = 0;
+            mode = USB;
+            setFrequency(frequency);
+            SetSideBand(USBdrive);
+            calibrate();
+            break;
 
-    case 15: // set the tuning pot range
-      set_tune_range();
-      break;
+        case 13: // set the VFO drive level in LSB
+            mode = LSB;
+            SetSideBand(LSBdrive);
+            VFOdrive();
+            break;
 
-    case 16: // set CW parameters (sidetone pitch, CW timeout)
-      param = 1;
-      set_CWparams();
-      break;
+        case 14: // set the VFO drive level in USB
+            mode = USB;
+            SetSideBand(USBdrive);
+            VFOdrive();
+            break;
 
-    case 17: // set the 4 scan parameters
-      param = 1;
-      scan_params();
-      break;
-  }
+        case 15: // set the tuning pot range
+            set_tune_range();
+            break;
+
+        case 16: // set CW parameters (sidetone pitch, CW timeout)
+            param = 1;
+            set_CWparams();
+            break;
+
+        case 17: // set the 4 scan parameters
+            param = 1;
+            scan_params();
+            break;
+    }
 }
 
 void swapVFOs() {
