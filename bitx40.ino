@@ -465,14 +465,12 @@ void calibrate() {
 */
 
 void setFrequency(unsigned long f) {
+    if (mode & 1) // if we are in UPPER side band mode
+        si5351.setFreq(2, bfo_freq + f + cal * 19 / 5 - USB_OFFSET - RXshift - RIT);
+    else // if we are in LOWER side band mode
+        si5351.setFreq(2, bfo_freq - f + cal - RXshift - RIT);
 
-  if (mode & 1) // if we are in UPPER side band mode
-    //~ si5351.set_freq((bfo_freq + f + cal * 19 / 5 - USB_OFFSET - RXshift - RIT) * 100ULL, SI5351_CLK2);
-    si5351.setFreq(2, bfo_freq + f + cal * 19 / 5 - USB_OFFSET - RXshift - RIT);
-  else // if we are in LOWER side band mode
-    //~ si5351.set_freq((bfo_freq - f + cal - RXshift - RIT) * 100ULL, SI5351_CLK2);
-    si5351.setFreq(2, bfo_freq - f + cal - RXshift - RIT);
-  updateDisplay();
+    updateDisplay();
 }
 
 /**
