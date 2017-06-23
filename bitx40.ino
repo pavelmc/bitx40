@@ -261,7 +261,7 @@ unsigned long stimeout = millis() + MINTERVAL;  // smeter timeout
 word smeterpool = 0;    // this will hold the sum of samples
 word smeter = 0;        // this will hold the value of the smeter for the bar
 byte smcount = 0;       // how many samples lies on smeterpool
-
+char *BARCHAR = "=";    // char to show on the bar
 
 /**
     Display Routines
@@ -1371,10 +1371,10 @@ void factory_settings() {
 
     // set all parameters to defaults and then force the update i the eeprom
     firmware_version = raduino_version;    //version identifier
-    cal = 0;              //cal offset value (0 Hz)
+    cal = 690;              //cal offset value (0 Hz)
     USB_OFFSET = 1500;    //USB offset (1500 Hz)
-    LSBdrive = 4;         //VFO drive level in LSB/CWL mode (4 mA)
-    USBdrive = 8;         //VFO drive level in USB/CWU mode (8 mA)
+    LSBdrive = 2;         //VFO drive level in LSB/CWL mode (4 mA)
+    USBdrive = 2;         //VFO drive level in USB/CWU mode (8 mA)
     TUNING_RANGE = 50;    //tuning range (50 kHz)
     CW_OFFSET = 800;      //CW offset / sidetone pitch (800 Hz)
     vfoA = 7125000UL;     // VFO A frequency (7125 kHz)
@@ -1459,7 +1459,7 @@ void smeter_check() {
             // print to buffer
             byte t = byte(smeter / 68);     // scale down from 0-1023 to 0-15
             while (t) {
-                strcat(c, "#");
+                strcat(c, BARCHAR);
                 t--;
             }
 
