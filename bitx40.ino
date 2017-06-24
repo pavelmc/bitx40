@@ -622,14 +622,18 @@ byte param;
 
 /**
     The Function Button is used for several functions
+
     NORMAL menu (normal operation):
+
     1 short press: swap VFO A/B
     2 short presses: toggle RIT on/off
     3 short presses: toggle SPLIT on/off
     4 short presses: toggle LSB/USB
     5 short presses: start freq scan mode
-    5 short presses: start A/B monitor mode
+    6 short presses: start A/B monitor mode
+
     long press (>1 Sec): VFO A=B
+
     VERY long press (>3 sec): go to SETTINGS menu
 
     SETTINGS menu:
@@ -640,10 +644,29 @@ byte param;
     5 short presses: Set tuning range
     6 short presses: Set the 2 CW parameters (sidetone pitch, CW timeout)
     7 short presses: Set the 4 scan parameters (lower limit, upper limit, step size, step delay)
+
     long press: exit SETTINGS menu - go back to NORMAL menu
 */
 char clicks;
-char *clickLabels[] = {"Swap VFOs", "RIT ON", "SPLIT ON/OFF", "Switch mode", "Start freq scan", "Monitor VFO A/B","", "", "", "", "LSB calibration", "USB calibration", "VFO drive - LSB", "VFO drive - USB", "Set tuning range", "Set CW params", "Set scan params"};
+char *clickLabels[] = {
+    "Swap VFOs",
+    "RIT ON",
+    "SPLIT ON/OFF",
+    "Switch mode",
+    "Start freq scan",
+    "Monitor VFO A/B",
+    "",
+    "",
+    "",
+    "",
+    "LSB calibration",
+    "USB calibration",
+    "VFO drive - LSB",
+    "VFO drive - USB",
+    "Set tuning range",
+    "Set CW params",
+    "Set scan params"
+};
 
 void checkButton() {
     static byte action;
@@ -1154,35 +1177,19 @@ void scan_params() {
     // if Fbutton is pressed, we save the setting
 
     if (!digitalRead(FBUTTON)) {
-        switch (param) {
-            case 1: // save the lower scan limit
-                //Write the 2 bytes of the start freq into the eeprom memory.
-                saveEEPROM();
-                bleep(600, 50, 1);
-                break;
+        // for all param we need to update the eeprom data
+        saveEEPROM();
 
-            case 2: // save the upper scan limit
-                //Write the 2 bytes of the stop freq into the eeprom memory.
-                saveEEPROM();
-                bleep(600, 50, 1);
-                break;
+        // make a bleep
+        bleep(600, 50, 1);
 
-            case 3: // save the scan step size
-                //Write the 2 bytes of the step size into the eeprom memory.
-                saveEEPROM();
-                bleep(600, 50, 1);
-                break;
-
-            case 4: // save the scan step delay
-                //Write the 2 bytes of the step delay into the eeprom memory.
-                saveEEPROM();
-                printLine2((char *)"Scan params set!");
-                RUNmode = RUN_NORMAL;
-                delay(700);
-                bleep(600, 50, 2);
-                printLine2((char *)"--- SETTINGS ---");
-                shiftBase(); //align the current knob position with the current frequency
-                break;
+        // param 4 is different: save the scan step delay
+        if (param == 4) {
+            printLine2((char *)"Scan params set!");
+            RUNmode = RUN_NORMAL;
+            delay(700);
+            printLine2((char *)"--- SETTINGS ---");
+            shiftBase(); //align the current knob position with the current frequency
         }
 
         param ++;
@@ -1458,7 +1465,7 @@ void smeter_check() {
             // AGC
             analogWrite(AGC, smeter / 4);   // scaled down to 255 from 1023
 
-            // cleaning the buffer
+            // cleaning the print buffer
             memset(c, 0, sizeof(c));
 
             // print to buffer
@@ -1483,7 +1490,6 @@ void smeter_check() {
 
 /**
     EEPROM related procedures, to simplify the EEPROM management
-
  **/
 
 // structured data: Main Configuration Parameters
@@ -1571,8 +1577,6 @@ void loadEEPROMConfig() {
     It setups up the modes for various pins as inputs or outputs
     initiliaizes the Si5351 and sets various variables to initial state
 
-    Just in case the LCD display doesn't work well, the debug log is dumped on the serial monitor
-    Choose Serial Monitor from Arduino IDE's Tools menu to see the Serial.print messages
 */
 void setup() {
     raduino_version = 102;
@@ -1588,7 +1592,6 @@ void setup() {
     // Start serial and initialize the Si5351
     Serial.begin(9600);
     analogReference(DEFAULT);
-    //Serial.println("*Raduino booting up");
 
     //configure the morse key input to use the internal pull-up
     pinMode(KEY, INPUT_PULLUP);
