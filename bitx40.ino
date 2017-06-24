@@ -77,7 +77,7 @@ char c[17], b[10], printBuff1[17], printBuff2[17];
     A0 (digital input) for sensing the PTT. Connect to the output of U3 (LM7805) of the BITX40.
       This way the A0 input will see 0V (LOW) when PTT is not pressed, +5V (HIGH) when PTT is pressed.
     A1 (digital input) is to connect to a straight key. Open (HIGH) during key up, switch to ground (LOW) during key down.
-    A2 (digital input) can be used for calibration by grounding this line (not required when you have the Function Button at A3).
+    A2 (digital input) former CAL_BUTTON, not longer supported
     A3 (digital input) is connected to a push button that can momentarily ground this line. This Function Button will be used to switch between different modes, etc.
     A4 (already in use for talking to the SI5351)
     A5 (already in use for talking to the SI5351)
@@ -99,10 +99,8 @@ char c[17], b[10], printBuff1[17], printBuff2[17];
 #define KILLED_PINS true
 
 #ifdef KILLED_PINS
-    #define CAL_BUTTON (4)
     #define FBUTTON (2)
 #else
-    #define CAL_BUTTON (A2)
     #define FBUTTON (A3)
 #endif
 
@@ -401,8 +399,8 @@ void calibrate() {
             shift = shift + 10;
     }
 
-    // if Fbutton is pressed again (or when the CAL button is released), we save the setting
-    if (!digitalRead(FBUTTON) || (calbutton && digitalRead(CAL_BUTTON))) {
+    // if Fbutton is pressed again, we save the setting
+    if (!digitalRead(FBUTTON) || calbutton) {
         RUNmode = RUN_NORMAL;
         calbutton = false;
 
@@ -1569,6 +1567,9 @@ void loadEEPROMConfig() {
     scan_step_freq      = conf.scstepf;
     scan_step_delay     = conf.scstepd;
     CW_TIMEOUT          = conf.cwtimeout;
+
+    // set the call parameter into the Si5351
+    si5351.correction(cal);
 }
 
 
@@ -1599,8 +1600,6 @@ void setup() {
     pinMode(FBUTTON, INPUT_PULLUP);
     //configure the PTT SENSE to use the internal pull-up
     pinMode(PTT_SENSE, INPUT_PULLUP);
-    //configure the CAL button to use the internal pull-up
-    pinMode(CAL_BUTTON, INPUT_PULLUP);
 
     pinMode(TX_RX, OUTPUT);
     digitalWrite(TX_RX, 0);
@@ -1609,12 +1608,11 @@ void setup() {
     pinMode(CW_TONE, OUTPUT);
     digitalWrite(CW_TONE, 0);
 
-    // when Fbutton or CALbutton is pressed during power up,
-    // or after a version update,
+    // when Fbutton is pressed during power up, or after a version update,
     // then all settings will be restored to the standard "factory" values
     loadEEPROMConfig();
-    if (!digitalRead(CAL_BUTTON) || !digitalRead(FBUTTON) || (firmware_version != raduino_version))
-    factory_settings();
+    if (!digitalRead(FBUTTON) || (firmware_version != raduino_version))
+        factory_settings();
 
     // check if PTT sense line is installed
     if (!digitalRead(PTT_SENSE))
@@ -1659,7 +1657,8 @@ void setup() {
     // if in CW mode
     if (mode > 1) RXshift = CW_OFFSET;
 
-    shiftBase(); //align the current knob position with the current frequency
+    //align the current knob position with the current frequency
+    shiftBase();
 
     //If no FButton is installed, and you still want to use custom tuning range settings,
     //uncomment the following line and adapt the value as desired:
@@ -1675,34 +1674,25 @@ void setup() {
 void loop() {
         switch (RUNmode) {
         case 0: // for backward compatibility: execute calibration when CAL button is pressed
-            if (!digitalRead(CAL_BUTTON)) {
-                RUNmode = RUN_CALIBRATE;
-                calbutton = true;
-                factory_settings();
-                printLine1((char *)"Calibrating: Set");
-                printLine2((char *)"to zerobeat");
-                delay(2000);
-            } else {
-                // smeter in rx mode
-                if (clicks == 0 && !ritOn && !inTx) smeter_check();
+            // smeter in rx mode
+            if (clicks == 0 && !ritOn && !inTx) smeter_check();
 
-                // power meter in tx mode
-                if (inTx) smeter_check();
+            // power meter in tx mode
+            if (inTx) smeter_check();
 
-                if (PTTsense_installed) {
-                    checkCW();
-                    checkTX();
-                }
-
-                save_frequency();
-                checkButton();
-
-                if (ritOn && !inTx)
-                    doRIT();
-                else
-                    doTuning();
+            if (PTTsense_installed) {
+                checkCW();
+                checkTX();
             }
-            return;
+
+            save_frequency();
+            checkButton();
+
+            if (ritOn && !inTx)
+                doRIT();
+            else
+                doTuning();
+            break;
         case 1: //calibration
             calibrate();
             break;
