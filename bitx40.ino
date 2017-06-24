@@ -96,7 +96,7 @@ char c[17], b[10], printBuff1[17], printBuff2[17];
  *
  */
 
-//#define KILLED_PINS true
+#define KILLED_PINS true
 
 #ifdef KILLED_PINS
     #define CAL_BUTTON (4)
@@ -643,7 +643,7 @@ byte param;
     long press: exit SETTINGS menu - go back to NORMAL menu
 */
 char clicks;
-char *clickLabels[] = {"Swap VFOs", "RIT ON", "SPLIT ON/OFF", "Switch mode", "Start freq scan", "Monitor VFO A/B", "LSB calibration", "USB calibration", "VFO drive - LSB", "VFO drive - USB", "Set tuning range", "Set CW params", "Set scan params"};
+char *clickLabels[] = {"Swap VFOs", "RIT ON", "SPLIT ON/OFF", "Switch mode", "Start freq scan", "Monitor VFO A/B","", "", "", "", "LSB calibration", "USB calibration", "VFO drive - LSB", "VFO drive - USB", "Set tuning range", "Set CW params", "Set scan params"};
 
 void checkButton() {
     static byte action;
@@ -651,28 +651,31 @@ void checkButton() {
     static bool pressed = false;
 
     if (digitalRead(FBUTTON)) {
-        t2 = millis() - t1; //time elapsed since last button press
+        //time elapsed since last button press
+        t2 = millis() - t1;
+
+        //detect long press to reset the VFO's
         if (pressed)
-            if (clicks < 10 && t2 > 600 && t2 < 3000) { //detect long press to reset the VFO's
-            bleep(600, 50, 1);
-            resetVFOs();
-            delay(700);
-            clicks = 0;
+            if (clicks < 10 && t2 > 600 && t2 < 3000) {
+                bleep(600, 50, 1);
+                resetVFOs();
+                delay(700);
+                clicks = 0;
             }
 
-        if (t2 > 500) { // max time between button clicks (ms)
+        // max time between button clicks (ms)
+        if (t2 > 500) {
             action = clicks;
-            if (clicks >= 10)
-                clicks = 10;
-            else
-                clicks = 0;
+            if (clicks >= 10) clicks = 10; else clicks = 0;
         }
+
         pressed = false;
 
     } else {
         delay(10);
-            if (!digitalRead(FBUTTON)) {
+        if (!digitalRead(FBUTTON)) {
             // button was really pressed, not just some noise
+
             if (ritOn) {
                 toggleRIT();
                 bleep(600, 50, 1);
@@ -691,12 +694,11 @@ void checkButton() {
 
                 if (clicks > 6 && clicks < 10) clicks = 1;
 
-                // simple an elegant way of print the cecons line labels
-                printLine2(clickLabels[1 + clicks]);
+                // simple an elegant way of print the second line labels
+                printLine2(clickLabels[clicks - 1]);
 
-            }
-            // long press: reset the VFOs
-            else if ((millis() - t1) > 600 && (millis() - t1) < 800 && clicks < 10)
+            } else if ((millis() - t1) > 600 && (millis() - t1) < 800 && clicks < 10)
+                // long press: reset the VFOs
                 printLine2((char *)"Reset VFOs");
 
             // VERY long press: go to the SETTINGS menu
@@ -706,9 +708,8 @@ void checkButton() {
                 clicks = 10;
                 //disable RIT if is was on
                 if (ritOn) toggleRIT();
-            }
-            // long press: return to the NORMAL menu
-            else if ((millis() - t1) > 1500 && clicks > 10) {
+            } else if ((millis() - t1) > 1500 && clicks > 10) {
+                // long press: return to the NORMAL menu
                 bleep(1200, 150, 3);
                 clicks = -1;
                 pressed = false;
@@ -804,15 +805,16 @@ void checkButton() {
 }
 
 void swapVFOs() {
-    if (vfoActive) { // if VFO B is active
-        vfoActive = false; // switch to VFO A
+    // if VFO B is active
+    if (vfoActive) {
+        // switch to VFO A
+        vfoActive = false;
         vfoB = frequency;
         frequency = vfoA;
         mode = mode_A;
-    }
-    //if VFO A is active
-    else {
-        vfoActive = true; // switch to VFO B
+    } else {
+        //if VFO A is active, switch to VFO B
+        vfoActive = true;
         vfoA = frequency;
         frequency = vfoB;
         mode = mode_B;
@@ -831,6 +833,7 @@ void swapVFOs() {
     //align the current knob position with the current frequency
     shiftBase();
 }
+
 
 void toggleRIT() {
     if (!PTTsense_installed) {
@@ -877,6 +880,7 @@ void toggleSPLIT() {
     updateDisplay();
 }
 
+
 void toggleMode() {
     if (PTTsense_installed)
         mode = (mode + 1) & 3; // rotate through LSB-USB-CWL-CWU
@@ -893,6 +897,7 @@ void toggleMode() {
     else // if we are in LOWER side band mode
         SetSideBand(LSBdrive);
 }
+
 
 void SetSideBand(byte drivelevel) {
     set_drive_level(drivelevel);
