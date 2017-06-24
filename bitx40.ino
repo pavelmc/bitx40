@@ -1597,8 +1597,8 @@ void loadEEPROMConfig() {
 
 */
 void setup() {
-    raduino_version = 102;
-    strcpy (c, "Bitx40 CO7WT 1.2");
+    raduino_version = 103;
+    strcpy (c, "Bitx40 CO7WT 1.3");
 
     // pin OUT for AGC
     pinMode(AGC, OUTPUT);
