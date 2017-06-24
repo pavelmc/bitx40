@@ -104,8 +104,8 @@ char c[17], b[10], printBuff1[17], printBuff2[17];
     #define FBUTTON (A3)
 #endif
 
-
-bool PTTsense_installed; //whether or not the PTT sense line is installed (detected automatically during startup)
+//whether or not the PTT sense line is installed (detected automatically during startup)
+bool PTTsense_installed;
 
 /**
     The second set of 16 pins on the bottom connector P3 have the three clock outputs and the digital lines to control the rig.
@@ -352,20 +352,25 @@ bool calbutton = false;
 
 /**
     To use calibration sets the accurate readout of the tuned frequency
+
     To calibrate, follow these steps:
     1. Tune in a LSB signal that is at a known frequency.
     2. Now, set the display to show the correct frequency,
-      the signal will no longer be tuned up properly
-    3. Use the "LSB calibrate" option in the "Settings" menu (or Press the CAL_BUTTON line to the ground (pin A2 - red wire))
-    4. tune in the signal until it sounds proper.
-    5. Press the FButton (or Release CAL_BUTTON)
-    In step 4, when we say 'sounds proper' then, for a CW signal/carrier it means zero-beat
-    and for LSB it is the most natural sounding setting.
+        the signal will no longer be tuned up properly
+    3. Use the "LSB calibrate" option in the "Settings" menu
+    4. Tune in the signal until it sounds proper.
+    5. Press the FButton to save the value.
 
-    Calibration is an offset value that is added to the VFO frequency.
-    We store it in the EEPROM and read it in setup() when the Radiuno is powered up.
+    In step 4, when we say 'sounds proper' then,
+        for a CW signal/carrier it means zero-beat
+        and for LSB it is the most natural sounding setting.
 
-    Then select the "USB calibrate" option in the "Settings" menu and repeat the same steps for USB mode.
+    Calibration in LSB / USB / CW is an offset value that is added to the VFO
+        frequency an we store it in the EEPROM and read it in setup()
+        when the Radiuno is powered up.
+
+    Then select the "USB calibrate" option in the "Settings" menu
+        and repeat the same steps for USB mode.
 */
 
 int shift, current_setting;
@@ -391,11 +396,11 @@ void calibrate() {
         else if (analogRead(ANALOG_TUNING) > 1020 && USB_OFFSET < 5000)
                 shift = shift + 10;
     } else {
-        cal = constrain((analogRead(ANALOG_TUNING) * 10) - 5000 + shift, -5000, 5000);
+        cal = constrain((analogRead(ANALOG_TUNING) * 10) - 8000 + shift, -8000, 8000);
 
-        if (analogRead(ANALOG_TUNING) < 5 && cal > -5000)
+        if (analogRead(ANALOG_TUNING) < 5 && cal > -8000)
             shift = shift - 10;
-        else if (analogRead(ANALOG_TUNING) > 1020 && cal < 5000)
+        else if (analogRead(ANALOG_TUNING) > 1020 && cal < 8000)
             shift = shift + 10;
     }
 
@@ -421,17 +426,27 @@ void calibrate() {
         // frequency as read out by the knob, display the change in the second line
         RUNmode = RUN_CALIBRATE;
 
+        // apply the correction factor
+        si5351.correction(cal);
+
+        // load in b the difference
+        // and update the frequency to apply the correction
         if (mode == USB) {
-            si5351.setFreq(2, bfo_freq + frequency + cal / 5 * 19 - USB_OFFSET);
+            si5351.setFreq(2, bfo_freq + frequency - USB_OFFSET);
             itoa(USB_OFFSET, b, DEC);
         } else {
-            si5351.setFreq(2, bfo_freq - frequency + cal);
+            si5351.setFreq(2, bfo_freq - frequency);
             itoa(cal, b, DEC);
         }
 
         strcpy(c, "offset ");
         strcat(c, b);
-        strcat(c, " Hz");
+        if (mode == USB)
+            strcat(c, " Hz");
+        else
+            strcat(c, " ppm");
+
+        // print it
         printLine2(c);
     }
 }
@@ -444,8 +459,10 @@ void calibrate() {
 
     LSB: The VFO frequency is subtracted from the BFO. Suppose the BFO is set to exactly 12 MHz
     and the VFO is at 5 MHz. The output will be at 12.000 - 5.000  = 7.000 MHz
+    *
     USB: The BFO is subtracted from the VFO. Makes the LSB signal of the BITX come out as USB!!
     Here is how it will work:
+    *
     Consider that you want to transmit on 14.000 MHz and you have the BFO at 12.000 MHz. We set
     the VFO to 26.000 MHz. Hence, 26.000 - 12.000 = 14.000 MHz. Now, consider you are whistling a tone
     of 1 KHz. As the BITX BFO is set to produce LSB, the output from the crystal filter will be 11.999 MHz.
@@ -464,9 +481,9 @@ void calibrate() {
 
 void setFrequency(unsigned long f) {
     if (mode & 1) // if we are in UPPER side band mode
-        si5351.setFreq(2, bfo_freq + f + cal * 19 / 5 - USB_OFFSET - RXshift - RIT);
+        si5351.setFreq(2, bfo_freq + f - USB_OFFSET - RXshift - RIT);
     else // if we are in LOWER side band mode
-        si5351.setFreq(2, bfo_freq - f + cal - RXshift - RIT);
+        si5351.setFreq(2, bfo_freq - f - RXshift - RIT);
 
     updateDisplay();
 }
@@ -1381,8 +1398,8 @@ void factory_settings() {
 
     // set all parameters to defaults and then force the update i the eeprom
     firmware_version = raduino_version;    //version identifier
-    cal = 690;              //cal offset value (0 Hz)
-    USB_OFFSET = 1500;    //USB offset (1500 Hz)
+    cal = -5520;          //cal offset value (ppm)
+    USB_OFFSET = 3500;    //USB offset (3500 Hz) (this is the filter's BW)
     LSBdrive = 2;         //VFO drive level in LSB/CWL mode (4 mA)
     USBdrive = 2;         //VFO drive level in USB/CWU mode (8 mA)
     TUNING_RANGE = 50;    //tuning range (50 kHz)
