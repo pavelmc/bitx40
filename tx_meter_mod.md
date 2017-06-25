@@ -11,6 +11,10 @@ I used a ferrite-black toroid borrowed from a broken electronic light bulb, I do
 * If your voltage is to low replace the resistor in parallel with the winding on the toroid for one with a higher value and repeat the loud speaking and voltage check, you will see how the voltage is going up; repeat until your voltage is between 4 and 5 volts.
 * In the step above if you don't get enough voltage even without the resistor you need to change the toroid or add more turns to it.
 
+## R in parallel? ##
+
+I used a R of 270 ohms in parallel with this toroid, but experimenting I can live also with 3 turns and 47 ohms in parallel also, so you need to adjust for your particular toroid windings and resistor.
+
 ## Note ##
 
 After measuring my toroid, I get this data: (for reference)
