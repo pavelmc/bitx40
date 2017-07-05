@@ -12,6 +12,8 @@ BITX40 sketch for Raduino (Pavel's folk)
 * TX power meter, using the same RX meter functions (need hardware mod: see tx_meter_mod.png and tx_meter_mod.md file for adjusting)
 * Software controlled AGC (need the smeter mod, plus the one shown in agc_software.png file) _You may notice a little buzzing noise when AGC kicks in, the buzz is via the MCU not the analog chain so we have to live with it_
 
+Check the [Operating Instructions](Operating_Instructions.md) file inside this code repository for mods and tips about they.
+
 ## TODO list (with no particular order) ##
 * Use the split-in-files feature of the Arduino IDE to organize the code.
 * Shrink the code as much as possible (code optimizations & use of yatuli?).
@@ -22,6 +24,14 @@ BITX40 sketch for Raduino (Pavel's folk)
 * User's comments and wishes.
 
 ## Changelog ##
+
+### v1.4 ###
+
+* Update to catch up with the features added in the Raduino v1.17.1 from Allard's code (CW SPOT and bug fixes)
+* Upgraded the operations instructions.
+    - More user friendly version with embedded images.
+    - Add instructions for the S-meter, AGC and TX-power mods details and tricks.
+* Moved all images to its own folder "images".
 
 ### v1.3 ###
 
