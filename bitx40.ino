@@ -1658,6 +1658,7 @@ void loadEEPROMConfig() {
     USBdrive            = conf.udrive;
     TUNING_RANGE        = conf.trange;
     CW_OFFSET           = conf.cwoffset;
+    USB_OFFSET          = conf.usboffset;
     vfoA                = conf.vfoa;
     vfoB                = conf.vfob;
     mode_A              = conf.modea;
